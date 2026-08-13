@@ -150,7 +150,7 @@ const Storage = {
     console.error('❌ SUPABASE KAYDI BAŞARISIZ:', error);
     toast('Supabase kaydı başarısız: ' + error.message);
     return false;
-  }
+  };
 }
 
 function buildDefaultState() {
