@@ -24,10 +24,10 @@ const AVATAR_COLORS = [
 const SUPABASE_URL = 'https://ivchraeubgpmwvfmknjz.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_M4k9fJUvd8gC0dsGRGKY0w_q5J5qZu7';
 
-// Eğer başka bir yerde tekrar 'const supabase =' yazdıysan onu sil veya şuna çevir:
-if (typeof supabase === 'undefined') {
-  var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-}
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
 
 const TOTW_DEFAULT_ROLES = ['Kaleci', 'Defans', 'Defans', 'Orta Saha', 'Orta Saha', 'Forvet'];
 const ROLE_OPTIONS = ['Kaleci', 'Defans', 'Orta Saha', 'Forvet'];
