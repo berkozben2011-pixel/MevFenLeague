@@ -69,22 +69,28 @@ const Storage = {
 
   async load() {
     try {
-      const { data, error } = await supabaseClient
-  .from('app_state')
-  .select('data')
-  .eq('id', 1)
-  .maybeSingle();
+      console.log('Supabase verisi yükleniyor...');
 
-      if (error) throw error;
+      const { data, error } = await supabaseClient
+        .from('app_state')
+        .select('data')
+        .eq('id', 1)
+        .maybeSingle();
+
+      console.log('Supabase yükleme sonucu:', { data, error });
+
+      if (error) {
+        throw error;
+      }
 
       if (!data) {
-        console.log('Supabase üzerinde henüz veri yok.');
+        console.log('Supabase üzerinde henüz kayıt yok.');
         return null;
       }
 
-      // Aynı zamanda tarayıcıya yedekle
+      // LocalStorage'a da yedekle
       try {
-        window.localStorage.setItem(
+        localStorage.setItem(
           STORAGE_KEY,
           JSON.stringify(data.data)
         );
@@ -94,64 +100,80 @@ const Storage = {
 
       return data.data;
 
-    } catch (e) {
-      console.error('Supabase verisi okunamadı:', e);
+    } catch (error) {
+      console.error('❌ Supabase yükleme hatası:', error);
 
-      // İnternet/Supabase sorunu olursa eski LocalStorage verisini kullan
+      // Supabase başarısızsa LocalStorage'dan dene
       try {
-        const raw = window.localStorage.getItem(STORAGE_KEY);
-        if (!raw) return null;
-        return JSON.parse(raw);
+        const raw = localStorage.getItem(STORAGE_KEY);
+
+        if (raw) {
+          console.log('LocalStorage yedeği kullanılıyor.');
+          return JSON.parse(raw);
+        }
       } catch (localError) {
-        console.error('Yerel veri de okunamadı:', localError);
-        return null;
+        console.error('LocalStorage okuma hatası:', localError);
       }
+
+      return null;
     }
   },
 
+
   async save(data) {
-  try {
-    // LocalStorage yedeği
     try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify(data)
+      // Önce LocalStorage yedeği
+      try {
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify(data)
+        );
+      } catch (e) {
+        console.warn('LocalStorage yedeği yazılamadı:', e);
+      }
+
+      console.log('Supabase kaydı başlıyor...');
+
+      const { data: savedData, error } = await supabaseClient
+        .from('app_state')
+        .upsert(
+          {
+            id: 1,
+            data: data,
+            updated_at: new Date().toISOString()
+          },
+          {
+            onConflict: 'id'
+          }
+        )
+        .select();
+
+      console.log('Supabase kayıt sonucu:', {
+        savedData,
+        error
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      console.log('✅ SUPABASE KAYDI BAŞARILI');
+
+      return true;
+
+    } catch (error) {
+      console.error('❌ SUPABASE KAYDI BAŞARISIZ:', error);
+
+      toast(
+        'Supabase kaydı başarısız: ' +
+        (error.message || error)
       );
-    } catch (e) {
-      console.warn('LocalStorage yedeği yazılamadı:', e);
+
+      return false;
     }
+  }
 
-    console.log('Supabase kaydı başlıyor...');
-
-    const result = await supabaseClient
-      .from('app_state')
-      .upsert(
-        {
-          id: 1,
-          data: data,
-          updated_at: new Date().toISOString()
-        },
-        {
-          onConflict: 'id'
-        }
-      )
-      .select();
-
-    console.log('Supabase sonucu:', result);
-
-    if (result.error) {
-      throw result.error;
-    }
-
-    console.log('✅ SUPABASE KAYDI BAŞARILI');
-    return true;
-
-  } catch (error) {
-    console.error('❌ SUPABASE KAYDI BAŞARISIZ:', error);
-    toast('Supabase kaydı başarısız: ' + error.message);
-    return false;
-  };
-}
+};
 
 function buildDefaultState() {
   return {
@@ -166,7 +188,7 @@ function buildDefaultState() {
     })),
     weeks: [],
     nextWeekNumber: 1
-  };
+  }
 }
 
 let state = buildDefaultState();
