@@ -830,40 +830,6 @@ function computeFullTotals() {
   return totals;
 }
 
-  state.weeks.forEach(week => {
-    ensureWeekData(week);
-    const playersThisWeek = new Set();
-
-    week.lineup.forEach(lineup => {
-      const id = lineup.playerId;
-      if (!totals[id]) totals[id] = { matches: 0, goals: 0, assists: 0, wins: 0, draws: 0, losses: 0, redCards: 0 };
-      playersThisWeek.add(id);
-      if (lineup.redCard) totals[id].redCards++;
-    });
-
-    playersThisWeek.forEach(playerId => {
-      totals[playerId].matches++;
-      const lineup = week.lineup.find(x => x.playerId === playerId);
-      if (!lineup || !week.score.entered) return;
-
-      if (week.score.A === week.score.B) {
-        totals[playerId].draws++;
-      } else if ((lineup.team === 'A' && week.score.A > week.score.B) || (lineup.team === 'B' && week.score.B > week.score.A)) {
-        totals[playerId].wins++;
-      } else {
-        totals[playerId].losses++;
-      }
-    });
-
-    (week.weeklyStats || []).forEach(stat => {
-      if (!totals[stat.playerId]) totals[stat.playerId] = { matches: 0, goals: 0, assists: 0, wins: 0, draws: 0, losses: 0, redCards: 0 };
-      totals[stat.playerId].goals += Number(stat.goals) || 0;
-      totals[stat.playerId].assists += Number(stat.assists) || 0;
-    });
-  });
-  return totals;
-}
-
 function ensurePlayerWeekStat(week, playerId) {
   let stat = week.weeklyStats.find(x => x.playerId === playerId);
   if (!stat) {
