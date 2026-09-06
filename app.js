@@ -320,7 +320,7 @@ function isPlayerInWeek(week, playerId) {
 
 function getWeekStat(week, playerId) {
   const s = (week.weeklyStats || []).find(x => x.playerId === playerId);
-  return s ? s : { playerId, goals: 0, assists: 0 };
+  return s ? s : { playerId, goals: 0, assists: 0, points: 0 };
 }
 
 /* ---------------- Toast ---------------- */
@@ -794,8 +794,43 @@ state.weeks.forEach(ensureWeekData);
 function computeFullTotals() {
   const totals = {};
   state.players.forEach(p => {
-    totals[p.id] = { matches: 0, goals: 0, assists: 0, wins: 0, draws: 0, losses: 0, redCards: 0 };
+    totals[p.id] = { matches: 0, goals: 0, assists: 0, points: 0, wins: 0, draws: 0, losses: 0, redCards: 0 };
   });
+
+  state.weeks.forEach(week => {
+    ensureWeekData(week);
+    const playersThisWeek = new Set();
+
+    week.lineup.forEach(lineup => {
+      const id = lineup.playerId;
+      if (!totals[id]) totals[id] = { matches: 0, goals: 0, assists: 0, points: 0, wins: 0, draws: 0, losses: 0, redCards: 0 };
+      playersThisWeek.add(id);
+      if (lineup.redCard) totals[id].redCards++;
+    });
+
+    playersThisWeek.forEach(playerId => {
+      totals[playerId].matches++;
+      const lineup = week.lineup.find(x => x.playerId === playerId);
+      if (!lineup || !week.score.entered) return;
+
+      if (week.score.A === week.score.B) {
+        totals[playerId].draws++;
+      } else if ((lineup.team === 'A' && week.score.A > week.score.B) || (lineup.team === 'B' && week.score.B > week.score.A)) {
+        totals[playerId].wins++;
+      } else {
+        totals[playerId].losses++;
+      }
+    });
+
+    (week.weeklyStats || []).forEach(stat => {
+      if (!totals[stat.playerId]) totals[stat.playerId] = { matches: 0, goals: 0, assists: 0, points: 0, wins: 0, draws: 0, losses: 0, redCards: 0 };
+      totals[stat.playerId].goals += Number(stat.goals) || 0;
+      totals[stat.playerId].assists += Number(stat.assists) || 0;
+      totals[stat.playerId].points += Number(stat.points) || 0;
+    });
+  });
+  return totals;
+}
 
   state.weeks.forEach(week => {
     ensureWeekData(week);
@@ -834,7 +869,7 @@ function computeFullTotals() {
 function ensurePlayerWeekStat(week, playerId) {
   let stat = week.weeklyStats.find(x => x.playerId === playerId);
   if (!stat) {
-    stat = { playerId, goals: 0, assists: 0 };
+    stat = { playerId, goals: 0, assists: 0, points: 0 };
     week.weeklyStats.push(stat);
   }
   return stat;
@@ -859,19 +894,21 @@ function openPlayerDetailPopover(weekId, playerId) {
       <h2 style="margin:10px 0 3px;">${escapeHtml(player.name)}</h2>
       <div style="color:var(--ink-soft);font-size:0.82rem;margin-bottom:15px;">${escapeHtml(teamName)}</div>
     </div>
-    <div class="stat-grid" style="display:flex;gap:10px;margin-bottom:12px;">
+    <div class="stat-grid" style="display:flex;gap:8px;margin-bottom:12px;">
+      <div class="stat-box"><strong>${stat.points || 0}</strong><span>PUAN</span></div>
+      <div class="stat-box"><strong>#${player.squadNumber}</strong><span>Forma No</span></div>
       <div class="stat-box"><strong>${stat.goals}</strong><span>Gol</span></div>
       <div class="stat-box"><strong>${stat.assists}</strong><span>Asist</span></div>
-      <div class="stat-box"><strong>${totals.matches || 0}</strong><span>Maç</span></div>
-      <div class="stat-box"><strong>${totals.goals || 0}</strong><span>Toplam Gol</span></div>
     </div>
     <div class="card" style="margin-top:12px;">
       <div style="font-weight:800;margin-bottom:8px;">Bu Haftaki İstatistikleri</div>
-      <div style="display:flex;gap:8px;">
-        <button class="btn small" onclick="changePlayerStat('${weekId}','${playerId}','goals',1)">⚽ +1 Gol</button>
-        <button class="btn small secondary" onclick="changePlayerStat('${weekId}','${playerId}','goals',-1)">− Gol</button>
-        <button class="btn small" onclick="changePlayerStat('${weekId}','${playerId}','assists',1)">🎯 +1 Asist</button>
-        <button class="btn small secondary" onclick="changePlayerStat('${weekId}','${playerId}','assists',-1)">− Asist</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn small" onclick="changePlayerStatAuth('${weekId}','${playerId}','points',1)">⭐ +1 Puan</button>
+        <button class="btn small secondary" onclick="changePlayerStatAuth('${weekId}','${playerId}','points',-1)">− Puan</button>
+        <button class="btn small" onclick="changePlayerStatAuth('${weekId}','${playerId}','goals',1)">⚽ +1 Gol</button>
+        <button class="btn small secondary" onclick="changePlayerStatAuth('${weekId}','${playerId}','goals',-1)">− Gol</button>
+        <button class="btn small" onclick="changePlayerStatAuth('${weekId}','${playerId}','assists',1)">🎯 +1 Asist</button>
+        <button class="btn small secondary" onclick="changePlayerStatAuth('${weekId}','${playerId}','assists',-1)">− Asist</button>
       </div>
     </div>
     <div class="card" style="margin-top:12px;">
@@ -880,6 +917,19 @@ function openPlayerDetailPopover(weekId, playerId) {
       <button class="btn block danger" style="margin-top:7px;" onclick="removePlayerFromWeek('${weekId}','${playerId}')">❌ Kadrodan Çıkar</button>
     </div>
   `);
+}
+
+function changePlayerStatAuth(weekId, playerId, type, amount) {
+  requireAuth(() => {
+    const week = getWeek(weekId);
+    if (!week) return;
+    const stat = ensurePlayerWeekStat(week, playerId);
+    stat[type] = Math.max(0, (Number(stat[type]) || 0) + amount);
+    saveState();
+    closeSheet();
+    openPlayerDetailPopover(weekId, playerId);
+    toast('Güncellendi ✓');
+  });
 }
 
 function changePlayerStat(weekId, playerId, type, amount) {
@@ -984,7 +1034,7 @@ function getScoreHTML(week) {
 function renderStats(param) {
   const app = document.getElementById('app');
   const totals = computeFullTotals();
-  const sorted = [...state.players].sort((a, b) => (totals[b.id]?.goals || 0) - (totals[a.id]?.goals || 0));
+  const sorted = [...state.players].sort((a, b) => (totals[b.id]?.points || 0) - (totals[a.id]?.points || 0));
 
   const rows = sorted.map((p, idx) => {
     const t = totals[p.id] || {};
@@ -993,7 +1043,7 @@ function renderStats(param) {
         <div class="rank-medal">${idx + 1}</div>
         ${miniAvatarHTML(p)}
         <div class="rname">${escapeHtml(p.name)}</div>
-        <div class="rval">⚽ ${t.goals || 0} <span>🎯 ${t.assists || 0} Asist</span></div>
+        <div class="rval">⭐ ${t.points || 0} <span>⚽ ${t.goals || 0} · 🎯 ${t.assists || 0} Asist</span></div>
       </div>`;
   }).join('');
 
