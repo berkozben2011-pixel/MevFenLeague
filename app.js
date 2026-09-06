@@ -789,8 +789,6 @@ function ensureWeekData(week) {
   return week;
 }
 
-state.weeks.forEach(ensureWeekData);
-
 function computeFullTotals() {
   const totals = {};
   state.players.forEach(p => {
