@@ -1036,16 +1036,36 @@ function renderStats(param) {
 
   const rows = sorted.map((p, idx) => {
     const t = totals[p.id] || {};
+    const played = t.matches || 0;
+    const wins = t.wins || 0;
+    const draws = t.draws || 0;
+    const losses = t.losses || 0;
+    const pts = t.points || 0;
+    
     return `
-      <div class="rank-row">
-        <div class="rank-medal">${idx + 1}</div>
-        ${miniAvatarHTML(p)}
-        <div class="rname">${escapeHtml(p.name)}</div>
-        <div class="rval">⭐ ${t.points || 0} <span>⚽ ${t.goals || 0} · 🎯 ${t.assists || 0} Asist</span></div>
+      <div class="rank-row" style="display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08);">
+        <div class="rank-medal" style="width: 30px; font-weight: bold; text-align: center;">${idx + 1}</div>
+        <div style="margin-right: 10px;">${miniAvatarHTML(p)}</div>
+        <div class="rname" style="flex: 1; font-weight: 600;">${escapeHtml(p.name)}</div>
+        <div style="display: flex; gap: 12px; font-size: 0.85rem; color: var(--ink-soft); text-align: right;">
+          <span title="Oynanan Maç">O: ${played}</span>
+          <span title="Galibiyet/Beraberlik/Mağlubiyet">${wins}G ${draws}B ${losses}M</span>
+          <span style="font-weight: bold; color: var(--ink);" title="Puan">⭐ <b>${pts}</b></span>
+        </div>
       </div>`;
   }).join('');
 
-  app.innerHTML = `${topbarHTML('İstatistikler')} <div class="page"><div class="card">${rows}</div></div>`;
+  app.innerHTML = `
+    ${topbarHTML('Puan Tablosu ve İstatistikler')} 
+    <div class="page">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--ink-soft); padding-bottom: 8px; border-bottom: 2px solid rgba(255,255,255,0.1); margin-bottom: 6px;">
+          <span># OYUNCU</span>
+          <span>O — G / B / M — PUAN</span>
+        </div>
+        ${rows}
+      </div>
+    </div>`;
 }
 
 function renderRanking(type) {
