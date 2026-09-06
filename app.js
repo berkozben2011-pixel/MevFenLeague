@@ -1014,8 +1014,8 @@ function renderStats(param) {
         <div style="margin-right: 10px;">${miniAvatarHTML(p)}</div>
         <div class="rname" style="flex: 1; font-weight: 600;">${escapeHtml(p.name)}</div>
         <div style="display: flex; gap: 12px; font-size: 0.85rem; color: var(--ink-soft); text-align: right;">
-          <span title="Oynanan Maç">O: ${played}</span>
-          <span title="Galibiyet/Beraberlik/Mağlubiyet">${wins}G ${draws}B ${losses}M</span>
+          <span title="Gol">O: ${stat.goals}</span>
+          <span title="Asist">0: ${stat.assits}</span>
           <span style="font-weight: bold; color: var(--ink);" title="Puan">⭐ <b>${pts}</b></span>
         </div>
       </div>`;
