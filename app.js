@@ -1004,7 +1004,7 @@ function renderStats(param) {
     const t = totals[p.id] || {};
     const played = t.matches || 0;
     const goals = t.goals || 0;
-    const assits = t.assits || 0;
+    const assists = t.assists || 0;
     const wins = t.wins || 0;
     const draws = t.draws || 0;
     const losses = t.losses || 0;
@@ -1016,8 +1016,9 @@ function renderStats(param) {
         <div style="margin-right: 10px;">${miniAvatarHTML(p)}</div>
         <div class="rname" style="flex: 1; font-weight: 600;">${escapeHtml(p.name)}</div>
         <div style="display: flex; gap: 12px; font-size: 0.85rem; color: var(--ink-soft); text-align: right;">
-          <span title="Gol">O: ${stat.goals}</span>
-          <span title="Asist">0: ${stat.assits}</span>
+          <span title="Oynanan Maç">O: ${played}</span>
+          <span title="Gol">G: ${goals}</span>
+          <span title="Asist">A: ${assists}</span>
           <span style="font-weight: bold; color: var(--ink);" title="Puan">⭐ <b>${pts}</b></span>
         </div>
       </div>`;
@@ -1029,7 +1030,7 @@ function renderStats(param) {
       <div class="card">
         <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--ink-soft); padding-bottom: 8px; border-bottom: 2px solid rgba(255,255,255,0.1); margin-bottom: 6px;">
           <span># OYUNCU</span>
-          <span>O — G / B / M — PUAN</span>
+          <span>O — G — A — PUAN</span>
         </div>
         ${rows}
       </div>
