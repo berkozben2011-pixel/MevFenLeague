@@ -1030,7 +1030,7 @@ function renderStats(param) {
       <div class="card">
         <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--ink-soft); padding-bottom: 8px; border-bottom: 2px solid rgba(255,255,255,0.1); margin-bottom: 6px;">
           <span># OYUNCU</span>
-          <span>O — G — A — PUAN</span>
+          <span>Gol — Asist — PUAN</span>
         </div>
         ${rows}
       </div>
