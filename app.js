@@ -101,12 +101,14 @@ async function saveState() {
   updateSyncBadge();
   try {
     const { error } = await sb.from('app_state').upsert({
-      id: 1, data: state, updated_at: new Date().toISOString()
+      id: 1, 
+      data: state, 
+      updated_at: new Date().toISOString()
     });
     if (error) throw error;
   } catch (e) {
     console.error('Veri kaydedilemedi:', e);
-    toast('Kaydedilemedi — bağlantını kontrol et');
+    toast('Kaydedilemedi — bağlantınızı kontrol edin');
   }
   saving = false;
   updateSyncBadge();
@@ -626,12 +628,27 @@ function renderHostPanel(weekParam) {
 }
 
 function saveMatchDate(weekId) {
-  const val = document.getElementById('matchDateTimeInput').value;
+  const inputEl = document.getElementById('matchDateTimeInput');
+  if (!inputEl) return;
+  
+  const val = inputEl.value;
   const week = getWeek(weekId);
-  if (!week) return;
+  
+  if (!week) {
+    toast('Hafta bulunamadı!');
+    return;
+  }
+  
+  // Local state'i güncelle
   week.matchDate = val;
+  
+  // Supabase (app_state) veritabanına kaydet
   saveState();
-  toast('Maç tarihi güncellendi');
+  
+  toast('Maç tarihi başarıyla kaydedildi 📅');
+  
+  // Ekranı güncel veriyle yenile
+  renderHostPanel(weekId);
 }
 
 function updateHostPlayerPoint(weekId, playerId, val) {
