@@ -612,8 +612,8 @@ function renderHostPanel(weekParam) {
 
       <div class="card">
         <h3>📅 Maç Gününü ve Saatini Ayarla</h3>
-        <input type="datetime-local" id="matchDateTimeInput" value="${week.matchDate || ''}" style="width:100%;margin-top:8px;">
-        <button class="btn block" style="margin-top:10px;" onclick="saveMatchDate('${week.id}')">Tarihi Kaydet</button>
+        <input type="datetime-local" id="matchDateTimeInput" value="${week.matchDate || ''}" style="width:100%;margin-top:8px;padding:8px;border-radius:6px;border:1px solid #ccc;">
+        <button class="btn block primary" style="margin-top:10px;" onclick="saveMatchDate('${week.id}')">Tarihi Kaydet</button>
       </div>
 
       <div class="card" style="margin-top:15px;">
@@ -630,24 +630,30 @@ function renderHostPanel(weekParam) {
 function saveMatchDate(weekId) {
   const inputEl = document.getElementById('matchDateTimeInput');
   if (!inputEl) return;
-  
-  const val = inputEl.value;
+
+  const matchDateVal = inputEl.value;
   const week = getWeek(weekId);
-  
+
   if (!week) {
-    toast('Hafta bulunamadı!');
+    if (typeof toast === 'function') toast('Hafta bulunamadı!');
     return;
   }
-  
-  // Local state'i güncelle
-  week.matchDate = val;
-  
+
+  // Tarihi hafta nesnesine kaydet
+  week.matchDate = matchDateVal;
+
   // Supabase (app_state) veritabanına kaydet
-  saveState();
-  
-  toast('Maç tarihi başarıyla kaydedildi 📅');
-  
-  // Ekranı güncel veriyle yenile
+  if (typeof saveState === 'function') {
+    saveState();
+  }
+
+  if (typeof toast === 'function') {
+    toast('Maç tarihi başarıyla kaydedildi 📅');
+  } else {
+    alert('Maç tarihi kaydedildi!');
+  }
+
+  // Ekranı güncelle
   renderHostPanel(weekId);
 }
 
