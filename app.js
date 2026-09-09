@@ -611,10 +611,15 @@ function renderHostPanel(weekParam) {
       </div>
 
       <div class="card">
-        <h3>📅 Maç Gününü ve Saatini Ayarla</h3>
-        <input type="datetime-local" id="matchDateTimeInput" value="${week.matchDate || ''}" style="width:100%;margin-top:8px;padding:8px;border-radius:6px;border:1px solid #ccc;">
-        <button class="btn block primary" style="margin-top:10px;" onclick="saveMatchDate('${week.id}')">Tarihi Kaydet</button>
-      </div>
+  <h3>📅 Maç Gününü ve Saatini Ayarla</h3>
+  <input 
+    type="datetime-local" 
+    id="matchDateTimeInput" 
+    value="${week.matchDate ? new Date(week.matchDate).toISOString().slice(0,16) : ''}" 
+    style="width:100%;margin-top:8px;padding:8px;border-radius:6px;border:1px solid #ccc;"
+  >
+  <button class="btn block primary" style="margin-top:10px;" onclick="saveMatchDate('${week.id}')">Tarihi Kaydet</button>
+</div>
 
       <div class="card" style="margin-top:15px;">
         <h3>⚽ Futbolcu Puan & İstatistik Yönetimi</h3>
@@ -632,29 +637,29 @@ function saveMatchDate(weekId) {
   if (!inputEl) return;
 
   const matchDateVal = inputEl.value;
-  const week = getWeek(weekId);
 
-  if (!week) {
-    if (typeof toast === 'function') toast('Hafta bulunamadı!');
+  if (!matchDateVal) {
+    toast('Lütfen geçerli bir tarih ve saat seçin!');
     return;
   }
 
-  // Tarihi hafta nesnesine kaydet
-  week.matchDate = matchDateVal;
+  const week = getWeek(weekId);
+
+  if (!week) {
+    toast('Hafta bulunamadı!');
+    return;
+  }
+
+  // Tarihi ISO formatına dönüştürerek kaydet
+  week.matchDate = new Date(matchDateVal).toISOString();
 
   // Supabase (app_state) veritabanına kaydet
-  if (typeof saveState === 'function') {
-    saveState();
-  }
+  saveState();
 
-  if (typeof toast === 'function') {
-    toast('Maç tarihi başarıyla kaydedildi 📅');
-  } else {
-    alert('Maç tarihi kaydedildi!');
-  }
+  toast('Maç tarihi başarıyla kaydedildi 📅');
 
   // Ekranı güncelle
-  renderHostPanel(weekId);
+  render();
 }
 
 function updateHostPlayerPoint(weekId, playerId, val) {
