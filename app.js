@@ -547,6 +547,73 @@ function renderHostPanel(weekParam) {
     return;
   }
 
+// ==========================================
+// 1. HOST PANELİ - MAÇ TARİHİ VE SAATİ AYARLAMA
+// ==========================================
+function renderHostMatchDatePicker() {
+  if (!state.isAdmin) return '';
+
+  const currentWeek = state.currentWeek || 1;
+  if (!state.weekDates) state.weekDates = {};
+  
+  // Mümkünse ISO datetime-local formatına çevir (YYYY-MM-DDTHH:mm)
+  const currentDateVal = state.weekDates[currentWeek] || '';
+
+  return `
+    <div class="card" style="margin-top:14px;border:2px solid var(--gold);">
+      <h3 style="color:var(--ink);font-size:1.1rem;margin-bottom:8px;">📅 Host Yönetimi: ${currentWeek}. Hafta Maç Tarihi</h3>
+      <p style="font-size:0.78rem;color:var(--ink-soft);margin-top:0;margin-bottom:10px;">
+        Bu haftanın maç tarihini ve başlama saatini belirleyin.
+      </p>
+      
+      <label class="field-label">Maç Tarihi ve Saati</label>
+      <input type="datetime-local" id="host_match_date_input" value="${currentDateVal}" style="margin-bottom:10px;">
+      
+      <button class="btn block small" onclick="saveMatchDate()">Maç Tarihini Kaydet & Yayınla</button>
+    </div>
+  `;
+}
+
+// Tarihi Supabase'e Kaydetme
+async function saveMatchDate() {
+  if (!state.isAdmin) return;
+
+  const currentWeek = state.currentWeek || 1;
+  const dateVal = document.getElementById('host_match_date_input').value;
+
+  if (!state.weekDates) state.weekDates = {};
+  state.weekDates[currentWeek] = dateVal;
+
+  showToast(`${currentWeek}. Hafta maç tarihi güncellendi!`);
+
+  // Supabase Bulut Senkronizasyonu
+  if (typeof syncToSupabase === 'function') {
+    await syncToSupabase();
+  }
+
+  // Ekranı Yenile
+  renderCurrentPage();
+}
+
+// Oyuncuların Ekranda Göreceği Maç Tarihi Bilgi Rozeti
+function getMatchDateBadge() {
+  const currentWeek = state.currentWeek || 1;
+  const rawDate = state.weekDates && state.weekDates[currentWeek];
+
+  if (!rawDate) return `<div class="week-meta">Maç tarihi henüz belirlenmedi</div>`;
+
+  const d = new Date(rawDate);
+  const formatted = d.toLocaleString('tr-TR', {
+    day: 'numeric',
+    month: 'long',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  return `<div class="week-meta" style="color:var(--gold);font-weight:700;">📅 ${formatted}</div>`;
+}
+
   const idx = weeks.findIndex(w => w.id === week.id);
   const prevWeek = idx > 0 ? weeks[idx - 1] : null;
   const nextWeek = idx < weeks.length - 1 ? weeks[idx + 1] : null;
