@@ -129,6 +129,23 @@ a{color:inherit;text-decoration:none;}
   position:relative;
   overflow:hidden;
 }
+
+<!-- Ana Menü / Host Ekranına Eklenen Kartlar -->
+<div class="menu-card" onclick="navigateTo('goals')">
+  <div class="icon">⚽</div>
+  <div class="label">Gol Krallığı</div>
+</div>
+
+<div class="menu-card" onclick="navigateTo('assists')">
+  <div class="icon">🅰️</div>
+  <div class="label">Asist Krallığı</div>
+</div>
+
+<div class="menu-card wide" onclick="navigateTo('totw')">
+  <div class="icon">🌟</div>
+  <div class="label">Haftanın 6'sı</div>
+</div>
+
 .menu-card:active{transform:scale(0.97);}
 .menu-card .icon{font-size:1.6rem;}
 .menu-card .label{
