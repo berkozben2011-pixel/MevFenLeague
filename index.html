@@ -130,22 +130,6 @@ a{color:inherit;text-decoration:none;}
   overflow:hidden;
 }
 
-<!-- Ana Menü / Host Ekranına Eklenen Kartlar -->
-<div class="menu-card" onclick="navigateTo('goals')">
-  <div class="icon">⚽</div>
-  <div class="label">Gol Krallığı</div>
-</div>
-
-<div class="menu-card" onclick="navigateTo('assists')">
-  <div class="icon">🅰️</div>
-  <div class="label">Asist Krallığı</div>
-</div>
-
-<div class="menu-card wide" onclick="navigateTo('totw')">
-  <div class="icon">🌟</div>
-  <div class="label">Haftanın 6'sı</div>
-</div>
-
 .menu-card:active{transform:scale(0.97);}
 .menu-card .icon{font-size:1.6rem;}
 .menu-card .label{
@@ -369,7 +353,7 @@ select, .select-field{
   width:100%;padding:11px 12px;border-radius:10px;border:1px solid #ddd;font-size:0.9rem;background:#fff;color:var(--ink);font-weight:600;
 }
 label.field-label{font-size:0.72rem;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.05em;display:block;margin:12px 0 5px;}
-input[type=text], input[type=date]{width:100%;padding:11px 12px;border-radius:10px;border:1px solid #ddd;font-size:0.9rem;}
+input[type=text], input[type=date], input[type=datetime-local]{width:100%;padding:11px 12px;border-radius:10px;border:1px solid #ddd;font-size:0.9rem;}
 
 /* ---------- Team of the week formation ---------- */
 .totw-field{
@@ -378,12 +362,6 @@ input[type=text], input[type=date]{width:100%;padding:11px 12px;border-radius:10
   display:flex;flex-direction:column;gap:14px;border:3px solid #12492f;
 }
 .totw-row{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;}
-.totw-slot{
-  display:flex;flex-direction:column;align-items:center;width:78px;cursor:pointer;
-}
-.totw-slot .avatar{width:50px;height:50px;font-size:1.1rem;}
-.totw-slot .tname{color:#fff;font-size:0.68rem;font-weight:700;margin-top:5px;text-align:center;line-height:1.15;text-shadow:0 1px 3px rgba(0,0,0,0.4);}
-.totw-slot .trole{color:var(--gold);font-size:0.58rem;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;margin-top:1px;}
 
 .field-set{background:#fff;border-radius:12px;padding:10px;margin-bottom:8px;}
 .field-set .row{display:flex;gap:8px;align-items:center;margin-bottom:6px;}
@@ -407,61 +385,6 @@ input[type=text], input[type=date]{width:100%;padding:11px 12px;border-radius:10
   </div>
 </div>
 
-<!--
-  ============================================================
-  SUPABASE KURULUMU (bir kere yapılır, ~5 dakika):
-
-  1) https://supabase.com/dashboard adresinde projene gir.
-  2) Sol menüden "SQL Editor" -> "New query" ile aşağıdaki SQL'i
-     ÇALIŞTIR (tekrar çalıştırsan da hata vermez, güvenle
-     kopyala-yapıştır yapabilirsin — "player_photos" tablosu
-     eksikse fotoğraf kaydetme SESSİZCE başarısız olur, bu
-     yüzden aşağıdaki SQL'in TAMAMINI çalıştırdığından emin ol):
-
-     create table if not exists app_state (
-       id int primary key,
-       data jsonb not null,
-       updated_at timestamptz default now()
-     );
-
-     create table if not exists player_photos (
-       player_id text primary key,
-       photo text,
-       updated_at timestamptz default now()
-     );
-
-     alter table app_state enable row level security;
-     alter table player_photos enable row level security;
-
-     drop policy if exists "allow all app_state" on app_state;
-     create policy "allow all app_state" on app_state
-       for all using (true) with check (true);
-
-     drop policy if exists "allow all player_photos" on player_photos;
-     create policy "allow all player_photos" on player_photos
-       for all using (true) with check (true);
-
-  3) Sol menüden "Database" -> "Replication" -> "supabase_realtime"
-     yayınına hem "app_state" hem "player_photos" tablolarını ekle
-     (anlık senkronizasyon için gerekli). Alternatif olarak SQL
-     Editor'de şunu çalıştırabilirsin (tablo zaten yayında ise
-     hata verir, o durumda bu adımı atlayabilirsin):
-
-     alter publication supabase_realtime add table app_state;
-     alter publication supabase_realtime add table player_photos;
-
-  4) app.js dosyasının en üstündeki SUPABASE_URL ve
-     SUPABASE_ANON_KEY zaten senin bilgilerinle dolduruldu.
-     Farklı bir proje kullanmak istersen orayı güncelle.
-
-  KONTROL: Kurulumdan sonra Table Editor'e girip "player_photos"
-  tablosunun göründüğünden emin ol. Uygulamada bir fotoğraf
-  yükleyip kaydetmezse, oyuncu düzenleme ekranında kırmızı bir
-  uyarı kutusu çıkar ve tam hata mesajını gösterir — o mesajı
-  okuyarak (örn. "relation does not exist" -> tablo eksik,
-  "row-level security policy" -> izin eksik) sorunu bulabilirsin.
-  ============================================================
--->
 <!-- Ortak bulut senkronizasyonu için Supabase SDK eklendi -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="app.js"></script>
