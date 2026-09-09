@@ -623,6 +623,196 @@ function addNewWeek() {
   go('#/hostpanel/' + newW.id);
 }
 
+// ==========================================
+// 1. GOL & ASİST KRALLIĞI RENDER / HESAPLAMA
+// ==========================================
+function renderStatsRanking(type) {
+  // type: 'goals' veya 'assists'
+  const players = state.players || [];
+  
+  // İstatistiğe göre sırala
+  const sorted = [...players].sort((a, b) => {
+    const valA = (a.stats && a.stats[type]) || 0;
+    const valB = (b.stats && b.stats[type]) || 0;
+    return valB - valA;
+  });
+
+  const title = type === 'goals' ? '⚽ Gol Krallığı' : '🅰️ Asist Krallığı';
+  
+  let html = `
+    <div class="topbar">
+      <button class="backbtn" onclick="navigateTo('home')">← Ana Menü</button>
+      <div class="pagetitle">${title}</div>
+    </div>
+    <div class="page">
+      <div class="section-title">${title}</div>
+  `;
+
+  if (sorted.length === 0) {
+    html += `<div class="empty-state"><p>Henüz oyuncu veya istatistik bulunmuyor.</p></div>`;
+  } else {
+    sorted.forEach((p, index) => {
+      const val = (p.stats && p.stats[type]) || 0;
+      const rank = index + 1;
+      const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
+      
+      html += `
+        <div class="rank-row ${rank === 1 ? 'top1' : ''}" onclick="openPlayerDetail('${p.id}')">
+          <div class="rank-medal">${medal}</div>
+          <div class="mini-avatar" style="${getAvatarStyle(p)}">${getInitials(p.name)}</div>
+          <div class="rname">${p.name}</div>
+          <div class="rval">
+            ${val}
+            <span>${type === 'goals' ? 'GOL' : 'ASİST'}</span>
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  html += `</div>`;
+  document.getElementById('app').innerHTML = html;
+}
+
+// ==========================================
+// 2. HAFTANIN 6'SI (TOTW) RENDER & HOST DÜZENLEME
+// ==========================================
+function renderTOTW() {
+  const currentWeek = state.currentWeek || 1;
+  const totwData = (state.totw && state.totw[currentWeek]) || {
+    gk: null,
+    def1: null, def2: null,
+    mid1: null, mid2: null,
+    att: null
+  };
+
+  const isAdmin = state.isAdmin || false;
+
+  let html = `
+    <div class="topbar">
+      <button class="backbtn" onclick="navigateTo('home')">← Ana Menü</button>
+      <div class="pagetitle">Haftanın 6'sı</div>
+    </div>
+    <div class="page">
+      
+      <!-- Hafta Seçici -->
+      <div class="week-switch">
+        <button onclick="changeWeek(-1)" ${currentWeek <= 1 ? 'disabled' : ''}>‹</button>
+        <div class="week-chip">${currentWeek}. HAFTA</div>
+        <button onclick="changeWeek(1)">›</button>
+      </div>
+
+      <div class="section-title" style="text-align:center;">HAFTANIN EN İYİ 6 OYUNCUSU</div>
+
+      <!-- Saha Görünümü (1-2-2-1 Dizilişi) -->
+      <div class="totw-field">
+        <!-- Forvet -->
+        <div class="totw-row">
+          ${renderTOTWSlot('FW', 'att', totwData.att)}
+        </div>
+        <!-- Orta Saha (2) -->
+        <div class="totw-row">
+          ${renderTOTWSlot('MF', 'mid1', totwData.mid1)}
+          ${renderTOTWSlot('MF', 'mid2', totwData.mid2)}
+        </div>
+        <!-- Defans (2) -->
+        <div class="totw-row">
+          ${renderTOTWSlot('DF', 'def1', totwData.def1)}
+          ${renderTOTWSlot('DF', 'def2', totwData.def2)}
+        </div>
+        <!-- Kaleci -->
+        <div class="totw-row">
+          ${renderTOTWSlot('GK', 'gk', totwData.gk)}
+        </div>
+      </div>
+  `;
+
+  // Yalnızca Admin/Host ise Haftanın 6'sını Kadro Seçici İle Düzenleyebilir
+  if (isAdmin) {
+    html += `
+      <div class="card" style="margin-top:16px;">
+        <h3 style="color:var(--ink);font-size:1.1rem;margin-bottom:10px;">⚙️ Host Yönetimi: Haftanın 6'sını Seç</h3>
+        <div class="field-set">
+          ${renderTOTWSelectRow('Kaleci (GK)', 'gk', totwData.gk)}
+          ${renderTOTWSelectRow('Defans 1 (DF)', 'def1', totwData.def1)}
+          ${renderTOTWSelectRow('Defans 2 (DF)', 'def2', totwData.def2)}
+          ${renderTOTWSelectRow('Orta Saha 1 (MF)', 'mid1', totwData.mid1)}
+          ${renderTOTWSelectRow('Orta Saha 2 (MF)', 'mid2', totwData.mid2)}
+          ${renderTOTWSelectRow('Forvet (FW)', 'att', totwData.att)}
+        </div>
+        <button class="btn block" style="margin-top:10px;" onclick="saveTOTW()">Haftanın 6'sını Kaydet & Yayınla</button>
+      </div>
+    `;
+  }
+
+  html += `</div>`;
+  document.getElementById('app').innerHTML = html;
+}
+
+// Saha üzerindeki oyuncu slotu
+function renderTOTWSlot(roleLabel, slotKey, playerId) {
+  const player = state.players.find(p => p.id === playerId);
+  if (!player) {
+    return `
+      <div class="totw-slot">
+        <div class="avatar" style="background:#256E48;border-dash:1px dotted #fff;">?</div>
+        <div class="tname">Seçilmedi</div>
+        <div class="trole">${roleLabel}</div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="totw-slot" onclick="openPlayerDetail('${player.id}')">
+      <div class="avatar" style="${getAvatarStyle(player)}">${getInitials(player.name)}</div>
+      <div class="tname">${player.name}</div>
+      <div class="trole">${roleLabel}</div>
+    </div>
+  `;
+}
+
+// Admin seçim satırı
+function renderTOTWSelectRow(label, slotKey, selectedId) {
+  let options = `<option value="">-- Oyuncu Seç --</option>`;
+  state.players.forEach(p => {
+    const sel = p.id === selectedId ? 'selected' : '';
+    options += `<option value="${p.id}" ${sel}>${p.name}</option>`;
+  });
+
+  return `
+    <div class="row">
+      <label style="width:110px;font-size:0.8rem;font-weight:700;">${label}:</label>
+      <select id="totw_select_${slotKey}">${options}</select>
+    </div>
+  `;
+}
+
+// Host'un Haftanın 6'sını Supabase'e kaydetmesi
+async function saveTOTW() {
+  if (!state.isAdmin) return;
+
+  const currentWeek = state.currentWeek || 1;
+  if (!state.totw) state.totw = {};
+
+  state.totw[currentWeek] = {
+    gk: document.getElementById('totw_select_gk').value || null,
+    def1: document.getElementById('totw_select_def1').value || null,
+    def2: document.getElementById('totw_select_def2').value || null,
+    mid1: document.getElementById('totw_select_mid1').value || null,
+    mid2: document.getElementById('totw_select_mid2').value || null,
+    att: document.getElementById('totw_select_att').value || null,
+  };
+
+  showToast(`${currentWeek}. Haftanın 6'sı başarıyla kaydedildi!`);
+  
+  // Supabase Bulut Verisini Güncelle
+  if (typeof syncToSupabase === 'function') {
+    await syncToSupabase();
+  }
+  
+  renderTOTW();
+}
+
 /* =========================================================
    6. OYUNCU LİSTESİ VE FOTOĞRAF YÖNETİMİ
    ========================================================= */
