@@ -57,7 +57,7 @@ function escapeHtml(str) {
 function formatDateTime(isoStr) {
   if (!isoStr) return 'Belirlenmedi';
   const d = new Date(isoStr);
-  if (isNaN(d)) return isoStr;
+  if (isNaN(d.getTime())) return isoStr;
   return d.toLocaleString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
@@ -87,7 +87,7 @@ function buildDefaultState() {
       lineup: [],
       score: { A: 0, B: 0, entered: false }
     }],
-    totw: {}, // { weekId: { gk, def1, def2, mid1, mid2, att } }
+    totw: {},
     userSquads: {},
     nextWeekNumber: 2
   };
@@ -441,7 +441,7 @@ function renderFantasySquad(weekParam) {
 
   const now = new Date();
   const matchDate = week.matchDate ? new Date(week.matchDate) : null;
-  const isLocked = matchDate && now >= matchDate;
+  const isLocked = matchDate && !isNaN(matchDate.getTime()) && now >= matchDate;
 
   const squadKey = `${currentUser.username}_${week.id}`;
   const selectedIds = state.userSquads[squadKey] || [];
@@ -573,6 +573,16 @@ function renderHostPanel(weekParam) {
   const prevWeek = idx > 0 ? weeks[idx - 1] : null;
   const nextWeek = idx < weeks.length - 1 ? weeks[idx + 1] : null;
 
+  // Güvenli datetime-local string oluşturma
+  let dateInputValue = '';
+  if (week.matchDate) {
+    const d = new Date(week.matchDate);
+    if (!isNaN(d.getTime())) {
+      const pad = n => String(n).padStart(2, '0');
+      dateInputValue = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+  }
+
   const playerPointsRows = state.players.map(p => {
     const currentPts = week.playerPoints?.[p.id] ?? 0;
     const goals = p.stats?.goals || 0;
@@ -611,15 +621,15 @@ function renderHostPanel(weekParam) {
       </div>
 
       <div class="card">
-  <h3>📅 Maç Gününü ve Saatini Ayarla</h3>
-  <input 
-    type="datetime-local" 
-    id="matchDateTimeInput" 
-    value="${week.matchDate ? new Date(week.matchDate).toISOString().slice(0,16) : ''}" 
-    style="width:100%;margin-top:8px;padding:8px;border-radius:6px;border:1px solid #ccc;"
-  >
-  <button class="btn block primary" style="margin-top:10px;" onclick="saveMatchDate('${week.id}')">Tarihi Kaydet</button>
-</div>
+        <h3>📅 Maç Gününü ve Saatini Ayarla</h3>
+        <input 
+          type="datetime-local" 
+          id="matchDateTimeInput" 
+          value="${dateInputValue}" 
+          style="width:100%;margin-top:8px;padding:8px;border-radius:6px;border:1px solid #ccc;"
+        >
+        <button class="btn block primary" style="margin-top:10px;" onclick="saveMatchDate('${week.id}')">Tarihi Kaydet</button>
+      </div>
 
       <div class="card" style="margin-top:15px;">
         <h3>⚽ Futbolcu Puan & İstatistik Yönetimi</h3>
@@ -650,15 +660,15 @@ function saveMatchDate(weekId) {
     return;
   }
 
-  // Tarihi ISO formatına dönüştürerek kaydet
-  week.matchDate = new Date(matchDateVal).toISOString();
+  const d = new Date(matchDateVal);
+  if (isNaN(d.getTime())) {
+    toast('Geçersiz tarih girdiniz!');
+    return;
+  }
 
-  // Supabase (app_state) veritabanına kaydet
+  week.matchDate = d.toISOString();
   saveState();
-
   toast('Maç tarihi başarıyla kaydedildi 📅');
-
-  // Ekranı güncelle
   render();
 }
 
@@ -921,7 +931,6 @@ async function handlePhotoUpload(event, playerId) {
     const p = getPlayer(playerId);
     p.photo = reader.result;
     
-    // Fotoğrafı özel tabloya kaydet
     if (supabaseReady) {
       try {
         await sb.from('player_photos').upsert({
