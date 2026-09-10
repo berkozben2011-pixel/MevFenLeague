@@ -118,9 +118,28 @@ function applyLoadedCoreState(loaded) {
   if (!loaded) return;
   state.users = loaded.users || [];
   state.teamNames = loaded.teamNames || state.teamNames;
-  state.weeks = loaded.weeks || [];
-  state.totw = loaded.totw || {};
-  state.nextWeekNumber = loaded.nextWeekNumber || 1;
+ // Haftalar yoksa başlangıçtaki 1. haftayı koru
+if (Array.isArray(loaded.weeks) && loaded.weeks.length > 0) {
+  state.weeks = loaded.weeks;
+} else if (!state.weeks || state.weeks.length === 0) {
+  state.weeks = [{
+    id: 'w1',
+    weekNumber: 1,
+    matchDate: '',
+    playerPoints: {},
+    lineup: [],
+    score: { A: 0, B: 0, entered: false }
+  }];
+}
+
+state.totw = loaded.totw || {};
+state.nextWeekNumber =
+  Number(loaded.nextWeekNumber) ||
+  (state.weeks.length
+    ? Math.max(...state.weeks.map(w => Number(w.weekNumber) || 0)) + 1
+    : 2);
+
+state.userSquads = loaded.userSquads || {};
   state.userSquads = loaded.userSquads || {};
   if (loaded.players && loaded.players.length) {
     const photoMap = {};
