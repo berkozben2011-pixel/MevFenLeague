@@ -68,7 +68,7 @@ let saving = false;
 
 function buildDefaultState() {
   return {
-    version: 2,
+    version: 3,
     users: [],
     teamNames: { A: 'Barcelona', B: 'Real Madrid' },
     players: DEFAULT_PLAYERS.map((name, i) => ({
@@ -76,19 +76,20 @@ function buildDefaultState() {
       name,
       photo: null,
       color: AVATAR_COLORS[i % AVATAR_COLORS.length],
-      squadNumber: i + 1,
-      stats: { goals: 0, assists: 0 }
+      squadNumber: i + 1
     })),
     weeks: [{
       id: 'w1',
       weekNumber: 1,
       matchDate: '',
       playerPoints: {},
+      playerWeeklyStats: {}, // { playerId: { goals: 0, assists: 0 } }
       lineup: [],
       score: { A: 0, B: 0, entered: false }
     }],
     totw: {},
     userSquads: {},
+    predictions: {},
     nextWeekNumber: 2
   };
 }
@@ -118,36 +119,39 @@ function applyLoadedCoreState(loaded) {
   if (!loaded) return;
   state.users = loaded.users || [];
   state.teamNames = loaded.teamNames || state.teamNames;
- // Haftalar yoksa başlangıçtaki 1. haftayı koru
-if (Array.isArray(loaded.weeks) && loaded.weeks.length > 0) {
-  state.weeks = loaded.weeks;
-} else if (!state.weeks || state.weeks.length === 0) {
-  state.weeks = [{
-    id: 'w1',
-    weekNumber: 1,
-    matchDate: '',
-    playerPoints: {},
-    lineup: [],
-    score: { A: 0, B: 0, entered: false }
-  }];
-}
 
-state.totw = loaded.totw || {};
-state.nextWeekNumber =
-  Number(loaded.nextWeekNumber) ||
-  (state.weeks.length
-    ? Math.max(...state.weeks.map(w => Number(w.weekNumber) || 0)) + 1
-    : 2);
+  if (Array.isArray(loaded.weeks) && loaded.weeks.length > 0) {
+    state.weeks = loaded.weeks.map(w => ({
+      ...w,
+      playerWeeklyStats: w.playerWeeklyStats || {}
+    }));
+  } else if (!state.weeks || state.weeks.length === 0) {
+    state.weeks = [{
+      id: 'w1',
+      weekNumber: 1,
+      matchDate: '',
+      playerPoints: {},
+      playerWeeklyStats: {},
+      lineup: [],
+      score: { A: 0, B: 0, entered: false }
+    }];
+  }
 
-state.userSquads = loaded.userSquads || {};
+  state.totw = loaded.totw || {};
+  state.predictions = loaded.predictions || {};
+  state.nextWeekNumber =
+    Number(loaded.nextWeekNumber) ||
+    (state.weeks.length
+      ? Math.max(...state.weeks.map(w => Number(w.weekNumber) || 0)) + 1
+      : 2);
+
   state.userSquads = loaded.userSquads || {};
   if (loaded.players && loaded.players.length) {
     const photoMap = {};
     state.players.forEach(p => { photoMap[p.id] = p.photo; });
     state.players = loaded.players.map(lp => ({ 
       ...lp, 
-      photo: photoMap[lp.id] || null,
-      stats: lp.stats || { goals: 0, assists: 0 }
+      photo: photoMap[lp.id] || null
     }));
   }
 }
@@ -203,13 +207,27 @@ async function initApp() {
   } catch (e) { console.error(e); }
 }
 
-/* ---------------- Veri Erişim ---------------- */
+/* ---------------- Veri Hesaplama & Erişim ---------------- */
 function getPlayer(id) { return state.players.find(p => p.id === id); }
 function getSortedWeeks() { return [...state.weeks].sort((a, b) => a.weekNumber - b.weekNumber); }
 function getWeek(id) { return state.weeks.find(w => w.id === id); }
 function latestWeek() {
   const sorted = getSortedWeeks();
   return sorted.length ? sorted[sorted.length - 1] : null;
+}
+
+// Oyuncunun tüm haftalardaki gol ve asistlerinin toplamını hesaplar
+function getPlayerTotalStats(playerId) {
+  let goals = 0;
+  let assists = 0;
+  state.weeks.forEach(w => {
+    const st = w.playerWeeklyStats?.[playerId];
+    if (st) {
+      goals += Number(st.goals || 0);
+      assists += Number(st.assists || 0);
+    }
+  });
+  return { goals, assists };
 }
 
 /* ---------------- Toast & Modal ---------------- */
@@ -291,6 +309,7 @@ function render() {
     case 'goals': return renderStatsRanking('goals');
     case 'assists': return renderStatsRanking('assists');
     case 'totw': return renderTOTW(param);
+    case 'predictions': return renderPredictions(param);
     default: return renderHome();
   }
 }
@@ -426,6 +445,11 @@ function renderHome() {
         <div class="label">Asist Krallığı</div>
         <div class="stripe"></div>
       </div>
+      <div class="menu-card" onclick="go('#/predictions')">
+        <div class="icon">🔮</div>
+        <div class="label">Tahmin</div>
+        <div class="stripe"></div>
+      </div>
       <div class="menu-card wide" onclick="go('#/totw')">
         <div class="icon">🌟</div>
         <div class="label">Haftanın 6'sı</div>
@@ -550,6 +574,10 @@ function renderLeaderboard() {
       squad.forEach(pid => {
         totalScore += Number(w.playerPoints?.[pid] || 0);
       });
+      const tahminScore = (state.predictions && state.predictions[w.id] && state.predictions[w.id].scores)
+        ? Number(state.predictions[w.id].scores[u.username] || 0)
+        : 0;
+      totalScore += tahminScore;
     });
     return { username: u.username, totalScore };
   });
@@ -592,7 +620,6 @@ function renderHostPanel(weekParam) {
   const prevWeek = idx > 0 ? weeks[idx - 1] : null;
   const nextWeek = idx < weeks.length - 1 ? weeks[idx + 1] : null;
 
-  // Güvenli datetime-local string oluşturma
   let dateInputValue = '';
   if (week.matchDate) {
     const d = new Date(week.matchDate);
@@ -604,8 +631,9 @@ function renderHostPanel(weekParam) {
 
   const playerPointsRows = state.players.map(p => {
     const currentPts = week.playerPoints?.[p.id] ?? 0;
-    const goals = p.stats?.goals || 0;
-    const assists = p.stats?.assists || 0;
+    const weeklyStat = (week.playerWeeklyStats && week.playerWeeklyStats[p.id]) || { goals: 0, assists: 0 };
+    const goals = weeklyStat.goals || 0;
+    const assists = weeklyStat.assists || 0;
 
     return `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #eee;">
@@ -620,11 +648,11 @@ function renderHostPanel(weekParam) {
           </div>
           <div class="num-input-group">
             <label>Gol</label>
-            <input type="number" value="${goals}" onchange="updatePlayerStat('${p.id}','goals',this.value)">
+            <input type="number" value="${goals}" onchange="updatePlayerWeeklyStat('${week.id}','${p.id}','goals',this.value)">
           </div>
           <div class="num-input-group">
             <label>Asist</label>
-            <input type="number" value="${assists}" onchange="updatePlayerStat('${p.id}','assists',this.value)">
+            <input type="number" value="${assists}" onchange="updatePlayerWeeklyStat('${week.id}','${p.id}','assists',this.value)">
           </div>
         </div>
       </div>`;
@@ -651,7 +679,7 @@ function renderHostPanel(weekParam) {
       </div>
 
       <div class="card" style="margin-top:15px;">
-        <h3>⚽ Futbolcu Puan & İstatistik Yönetimi</h3>
+        <h3>⚽ Futbolcu Puan & İstatistik Yönetimi (Hafta ${week.weekNumber})</h3>
         <div style="margin-top:12px;">${playerPointsRows}</div>
       </div>
 
@@ -666,14 +694,12 @@ function saveMatchDate(weekId) {
   if (!inputEl) return;
 
   const matchDateVal = inputEl.value;
-
   if (!matchDateVal) {
     toast('Lütfen geçerli bir tarih ve saat seçin!');
     return;
   }
 
   const week = getWeek(weekId);
-
   if (!week) {
     toast('Hafta bulunamadı!');
     return;
@@ -700,13 +726,16 @@ function updateHostPlayerPoint(weekId, playerId, val) {
   toast('Puan kaydedildi');
 }
 
-function updatePlayerStat(playerId, statKey, val) {
-  const p = getPlayer(playerId);
-  if (!p) return;
-  if (!p.stats) p.stats = { goals: 0, assists: 0 };
-  p.stats[statKey] = Number(val) || 0;
+function updatePlayerWeeklyStat(weekId, playerId, statKey, val) {
+  const week = getWeek(weekId);
+  if (!week) return;
+  if (!week.playerWeeklyStats) week.playerWeeklyStats = {};
+  if (!week.playerWeeklyStats[playerId]) {
+    week.playerWeeklyStats[playerId] = { goals: 0, assists: 0 };
+  }
+  week.playerWeeklyStats[playerId][statKey] = Number(val) || 0;
   saveState();
-  toast('İstatistik güncellendi');
+  toast(`Hafta ${week.weekNumber} istatistiği güncellendi`);
 }
 
 function addNewWeek() {
@@ -715,6 +744,7 @@ function addNewWeek() {
     weekNumber: state.nextWeekNumber,
     matchDate: '',
     playerPoints: {},
+    playerWeeklyStats: {},
     lineup: [],
     score: { A: 0, B: 0, entered: false }
   };
@@ -731,14 +761,16 @@ function addNewWeek() {
 function renderStatsRanking(type) {
   const players = state.players || [];
   
-  const sorted = [...players].sort((a, b) => {
-    const valA = (a.stats && a.stats[type]) || 0;
-    const valB = (b.stats && b.stats[type]) || 0;
-    return valB - valA;
-  });
+  const sorted = [...players].map(p => {
+    const totalStats = getPlayerTotalStats(p.id);
+    return {
+      ...p,
+      val: totalStats[type] || 0
+    };
+  }).sort((a, b) => b.val - a.val);
 
   const isGoal = type === 'goals';
-  const title = isGoal ? '⚽ Gol Krallığı' : '🅰️ Asist Krallığı';
+  const title = isGoal ? '⚽ Gol Krallığı (Toplam)' : '🅰️ Asist Krallığı (Toplam)';
   
   let html = `
     ${topbarHTML(title)}
@@ -750,7 +782,6 @@ function renderStatsRanking(type) {
     html += `<div class="empty-state"><p>Henüz veri bulunmuyor.</p></div>`;
   } else {
     sorted.forEach((p, index) => {
-      const val = (p.stats && p.stats[type]) || 0;
       const rank = index + 1;
       const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
       
@@ -760,8 +791,8 @@ function renderStatsRanking(type) {
           ${miniAvatarHTML(p)}
           <div class="rname">${escapeHtml(p.name)}</div>
           <div class="rval">
-            ${val}
-            <span>${isGoal ? 'GOL' : 'ASİST'}</span>
+            ${p.val}
+            <span>${isGoal ? 'TOPLAM GOL' : 'TOPLAM ASİST'}</span>
           </div>
         </div>
       `;
@@ -900,17 +931,196 @@ function saveTOTW(weekId) {
 }
 
 /* =========================================================
+   7.5 TAHMİN (HAFTALIK 9 SORU)
+   ========================================================= */
+const TAHMIN_QUESTION_COUNT = 9;
+
+function safeId(str) {
+  return String(str || '').replace(/[^a-zA-Z0-9]/g, '_');
+}
+
+function getTahminData(weekId) {
+  if (!state.predictions) state.predictions = {};
+  if (!state.predictions[weekId]) {
+    state.predictions[weekId] = {
+      questions: Array(TAHMIN_QUESTION_COUNT).fill(''),
+      published: false,
+      answers: {},
+      scores: {}
+    };
+  }
+  const d = state.predictions[weekId];
+  if (!d.questions || d.questions.length !== TAHMIN_QUESTION_COUNT) {
+    const q = Array(TAHMIN_QUESTION_COUNT).fill('');
+    (d.questions || []).forEach((v, i) => { if (i < TAHMIN_QUESTION_COUNT) q[i] = v; });
+    d.questions = q;
+  }
+  if (!d.answers) d.answers = {};
+  if (!d.scores) d.scores = {};
+  return d;
+}
+
+function renderPredictions(weekParam) {
+  const weeks = getSortedWeeks();
+  let week = weekParam ? getWeek(weekParam) : latestWeek();
+  const app = document.getElementById('app');
+
+  if (!week) {
+    app.innerHTML = `${topbarHTML('Tahmin')} <div class="page"><p>Hafta bulunamadı</p></div>`;
+    return;
+  }
+
+  const idx = weeks.findIndex(w => w.id === week.id);
+  const prevWeek = idx > 0 ? weeks[idx - 1] : null;
+  const nextWeek = idx < weeks.length - 1 ? weeks[idx + 1] : null;
+
+  const data = getTahminData(week.id);
+  const hasQuestions = data.published && data.questions.some(q => q && q.trim() !== '');
+
+  let html = `
+    ${topbarHTML('🔮 Tahmin')}
+    <div class="page">
+      <div class="week-switch">
+        <button ${prevWeek ? '' : 'disabled'} onclick="go('#/predictions/${prevWeek ? prevWeek.id : ''}')">‹</button>
+        <div class="week-chip">HAFTA ${week.weekNumber}</div>
+        <button ${nextWeek ? '' : 'disabled'} onclick="go('#/predictions/${nextWeek ? nextWeek.id : ''}')">›</button>
+      </div>
+      <div class="section-title" style="text-align:center;">HAFTANIN 9 TAHMİN SORUSU</div>
+  `;
+
+  if (isHost()) {
+    html += `
+      <div class="card">
+        <h3>⚙️ Host: Soruları Hazırla</h3>
+        <p style="color:var(--ink-soft);font-size:0.8rem;margin-top:4px;">Bu haftanın 9 sorusunu yaz ve yayınla. Herkes aynı soruları görüp cevaplayacak.</p>
+        <div style="margin-top:10px;">
+          ${data.questions.map((q, i) => `
+            <label class="field-label">Soru ${i + 1}</label>
+            <input type="text" id="tahmin_q_${i}" value="${escapeHtml(q)}" placeholder="Soru ${i + 1}...">
+          `).join('')}
+        </div>
+        <button class="btn block" style="margin-top:14px;" onclick="saveTahminQuestions('${week.id}')">${data.published ? 'Soruları Güncelle & Yayınla' : 'Soruları Kaydet & Yayınla'}</button>
+      </div>
+    `;
+
+    if (data.published) {
+      const nonHostUsers = state.users || [];
+      html += `
+        <div class="card" style="margin-top:15px;">
+          <h3>📝 Gönderilen Cevaplar & Puanlama</h3>
+      `;
+      if (nonHostUsers.length === 0) {
+        html += `<p style="color:var(--ink-soft);font-size:0.85rem;">Henüz kayıtlı oyuncu yok.</p>`;
+      } else {
+        nonHostUsers.forEach(u => {
+          const ans = data.answers[u.username];
+          const currentScore = data.scores[u.username] || 0;
+          html += `
+            <div style="border-bottom:1px solid #eee;padding:10px 0;margin-bottom:6px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div style="font-weight:700;">${escapeHtml(u.username)}</div>
+                <div class="num-input-group">
+                  <label>Tahmin Puanı</label>
+                  <input type="number" id="tahmin_score_${safeId(u.username)}" value="${currentScore}">
+                </div>
+              </div>
+              ${ans ? `
+                <div style="margin-top:8px;font-size:0.82rem;color:var(--ink-soft);">
+                  ${data.questions.map((q, i) => `<div style="margin-bottom:4px;"><b>Soru ${i + 1}: ${escapeHtml(q || '(Soru belirtilmedi)')}</b><br>↳ Cevap: ${escapeHtml(ans[i] || '(boş cevap)')}</div>`).join('')}
+                </div>
+              ` : `<div style="margin-top:6px;color:var(--ink-soft);font-size:0.8rem;">Henüz cevap göndermedi.</div>`}
+            </div>
+          `;
+        });
+        html += `<button class="btn block" style="margin-top:8px;" onclick="saveAllTahminScores('${week.id}')">Tüm Tahmin Puanlarını Kaydet</button>`;
+      }
+      html += `</div>`;
+    }
+  } else {
+    if (!hasQuestions) {
+      html += `<div class="empty-state"><p>Bu hafta için tahmin soruları henüz yayınlanmadı.</p></div>`;
+    } else {
+      const myAnswers = data.answers[currentUser.username] || Array(TAHMIN_QUESTION_COUNT).fill('');
+      const myScore = data.scores[currentUser.username];
+      html += `
+        <div class="card">
+          ${data.questions.map((q, i) => `
+            <label class="field-label">Soru ${i + 1}: ${escapeHtml(q || 'Soru Metni Belirtilmedi')}</label>
+            <input type="text" id="tahmin_ans_${i}" value="${escapeHtml(myAnswers[i] || '')}" placeholder="Cevabını yaz...">
+          `).join('')}
+          <button class="btn block" style="margin-top:14px;" onclick="submitTahminAnswers('${week.id}')">Cevapları Gönder</button>
+        </div>
+        ${typeof myScore === 'number' ? `
+          <div class="card" style="text-align:center;">
+            <div style="font-size:0.85rem;color:var(--ink-soft);">Bu haftaki tahmin puanın</div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--pitch-dark);">⭐ ${myScore}</div>
+          </div>
+        ` : ''}
+      `;
+    }
+  }
+
+  html += `</div>`;
+  app.innerHTML = html;
+}
+
+function saveTahminQuestions(weekId) {
+  if (!isHost()) return;
+  const data = getTahminData(weekId);
+  const qs = [];
+  for (let i = 0; i < TAHMIN_QUESTION_COUNT; i++) {
+    const el = document.getElementById('tahmin_q_' + i);
+    qs.push(el ? el.value.trim() : '');
+  }
+  data.questions = qs;
+  data.published = true;
+  saveState();
+  toast('Tahmin soruları yayınlandı!');
+  renderPredictions(weekId);
+}
+
+function submitTahminAnswers(weekId) {
+  const data = getTahminData(weekId);
+  const answers = [];
+  for (let i = 0; i < TAHMIN_QUESTION_COUNT; i++) {
+    const el = document.getElementById('tahmin_ans_' + i);
+    answers.push(el ? el.value.trim() : '');
+  }
+  if (!data.answers) data.answers = {};
+  data.answers[currentUser.username] = answers;
+  saveState();
+  toast('Cevapların gönderildi!');
+  renderPredictions(weekId);
+}
+
+function saveAllTahminScores(weekId) {
+  if (!isHost()) return;
+  const data = getTahminData(weekId);
+  if (!data.scores) data.scores = {};
+  (state.users || []).forEach(u => {
+    const el = document.getElementById('tahmin_score_' + safeId(u.username));
+    if (el) data.scores[u.username] = Number(el.value) || 0;
+  });
+  saveState();
+  toast('Tahmin puanları kaydedildi!');
+  renderPredictions(weekId);
+}
+
+/* =========================================================
    8. OYUNCU LİSTESİ VE FOTOĞRAF YÖNETİMİ
    ========================================================= */
 function renderPlayers() {
   const app = document.getElementById('app');
 
-  const rows = state.players.map(p => `
-    <div class="player-card" onclick="openPlayerPhotoModal('${p.id}')">
-      ${avatarHTML(p)}
-      <div class="pname">${escapeHtml(p.name)}</div>
-      <div class="pstats">#${p.squadNumber} | ⚽ ${p.stats?.goals || 0} | 🅰️ ${p.stats?.assists || 0}</div>
-    </div>`).join('');
+  const rows = state.players.map(p => {
+    const totalStats = getPlayerTotalStats(p.id);
+    return `
+      <div class="player-card" onclick="openPlayerPhotoModal('${p.id}')">
+        ${avatarHTML(p)}
+        <div class="pname">${escapeHtml(p.name)}</div>
+        <div class="pstats">#${p.squadNumber} | ⚽ ${totalStats.goals} | 🅰️ ${totalStats.assists}</div>
+      </div>`;
+  }).join('');
 
   app.innerHTML = `
     ${topbarHTML('14 Futbolcu')}
@@ -922,6 +1132,7 @@ function renderPlayers() {
 function openPlayerPhotoModal(playerId) {
   const p = getPlayer(playerId);
   if (!p) return;
+  const totalStats = getPlayerTotalStats(p.id);
 
   openSheet(`
     <div style="text-align:center;">
@@ -929,8 +1140,8 @@ function openPlayerPhotoModal(playerId) {
       <h3>${escapeHtml(p.name)}</h3>
       <p style="color:var(--ink-soft);font-size:0.85rem;">Forma No: #${p.squadNumber}</p>
       <div style="display:flex;justify-content:center;gap:15px;margin-top:10px;">
-        <div class="pill">⚽ Gol: ${p.stats?.goals || 0}</div>
-        <div class="pill">🅰️ Asist: ${p.stats?.assists || 0}</div>
+        <div class="pill">⚽ Toplam Gol: ${totalStats.goals}</div>
+        <div class="pill">🅰️ Toplam Asist: ${totalStats.assists}</div>
       </div>
     </div>
     ${isHost() ? `
