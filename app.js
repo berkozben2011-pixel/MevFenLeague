@@ -683,8 +683,9 @@ function renderHostPanel(weekParam) {
         <div style="margin-top:12px;">${playerPointsRows}</div>
       </div>
 
-      <div class="card" style="margin-top:15px;">
-        <button class="btn block secondary" onclick="addNewWeek()">➕ Yeni Hafta Ekle (Hafta ${state.nextWeekNumber})</button>
+            <div class="card" style="margin-top:15px; display:flex; gap:10px;">
+        <button class="btn block secondary" style="flex:1;" onclick="addNewWeek()">➕ Yeni Hafta Ekle (Hafta ${state.nextWeekNumber})</button>
+        <button class="btn block danger" style="flex:1; background-color:#dc3545; color:#fff;" onclick="deleteWeek('${week.id}')">🗑️ Bu Haftayı Sil</button>
       </div>
     </div>`;
 }
@@ -754,6 +755,40 @@ function addNewWeek() {
   toast(`Hafta ${newW.weekNumber} eklendi`);
   go('#/hostpanel/' + newW.id);
 }
+
+function deleteWeek(weekId) {
+  // Sadece 1 hafta kaldıysa silinmesini engeller
+  if (state.weeks.length <= 1) {
+    toast('En az 1 hafta bulunmalıdır, son haftayı silemezsiniz!');
+    return;
+  }
+
+  const weekToDelete = getWeek(weekId);
+  if (!weekToDelete) return;
+
+  const confirmDelete = confirm(`Hafta ${weekToDelete.weekNumber} silinecektir. Emin misiniz?`);
+  if (!confirmDelete) return;
+
+  // Silinecek haftayı listeden çıkar
+  state.weeks = state.weeks.filter(w => w.id !== weekId);
+
+  // Kalan haftaların hafta numaralarını sıralı şekilde yeniden düzenle
+  state.weeks.sort((a, b) => a.weekNumber - b.weekNumber);
+  state.weeks.forEach((w, index) => {
+    w.weekNumber = index + 1;
+  });
+
+  // Sonraki eklenecek hafta numarasını güncelle
+  state.nextWeekNumber = state.weeks.length + 1;
+
+  saveState();
+  toast('Hafta başarıyla silindi');
+
+  // Silinen haftadan sonra kalan son haftanın ekranına yönlendir
+  const lastRemainingWeek = state.weeks[state.weeks.length - 1];
+  go('#/hostpanel/' + lastRemainingWeek.id);
+}
+
 
 /* =========================================================
    6. GOL & ASİST KRALLIĞI
