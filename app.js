@@ -548,7 +548,7 @@ function renderFantasySquad(weekParam) {
         <div>
           <div style="font-size:0.8rem; color:var(--ink-soft);">Top. Kadro Değeri</div>
           <div style="font-weight:bold; font-size:1.1rem; color:${totalValue > MAX_BUDGET ? 'var(--red-card)' : 'var(--pitch)'};">
-            ${totalValue}M € / ${MAX_BUDGET}M €
+            ${totalValue}M € / 100 €
           </div>
         </div>
         <div style="text-align:right;">
