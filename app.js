@@ -702,6 +702,11 @@ function renderHostPanel(weekParam) {
             <label>Asist</label>
             <input type="number" value="${assists}" onchange="updatePlayerWeeklyStat('${week.id}','${p.id}','assists',this.value)">
           </div>
+          // Puan, Gol, Asist girdilerinin yanına Forma No girdisini ekleyin:
+<div class="num-input-group">
+  <label>Forma No</label>
+  <input type="number" value="${p.squadNumber || ''}" onchange="updatePlayerSquadNumber('${p.id}', this.value)">
+</div>
         </div>
       </div>`;
   }).join('');
@@ -782,6 +787,15 @@ function updateHostPlayerPoint(weekId, playerId, val) {
   saveState();
   toast('Puan kaydedildi');
 }
+
+function updatePlayerSquadNumber(playerId, val) {
+  const p = getPlayer(playerId);
+  if (!p) return;
+  p.squadNumber = Number(val) || 0;
+  saveState();
+  toast(`${p.name} forma numarası #${p.squadNumber} olarak güncellendi`);
+}
+
 
 function updatePlayerWeeklyStat(weekId, playerId, statKey, val) {
   const week = getWeek(weekId);
