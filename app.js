@@ -499,7 +499,7 @@ function renderFantasySquad(weekParam) {
     if (p) totalValue += Number(p.price !== undefined ? p.price : 10);
   });
 
-  const MAX_BUDGET = 75;
+  const MAX_BUDGET = 100;
   const remainingBudget = MAX_BUDGET - totalValue;
 
   const selectedListHTML = selectedIds.map(id => {
