@@ -76,7 +76,8 @@ function buildDefaultState() {
       name,
       photo: null,
       color: AVATAR_COLORS[i % AVATAR_COLORS.length],
-      squadNumber: i + 1
+      squadNumber: i + 1,
+      price: 10
     })),
     weeks: [{
       id: 'w1',
@@ -151,7 +152,8 @@ function applyLoadedCoreState(loaded) {
     state.players.forEach(p => { photoMap[p.id] = p.photo; });
     state.players = loaded.players.map(lp => ({ 
       ...lp, 
-      photo: photoMap[lp.id] || null
+      photo: photoMap[lp.id] || null,
+      price: lp.price !== undefined ? lp.price : 10
     }));
   }
 }
@@ -490,30 +492,40 @@ function renderFantasySquad(weekParam) {
   const selectedIds = state.userSquads[squadKey] || [];
 
   let weekPointsEarned = 0;
+  let totalValue = 0;
   selectedIds.forEach(id => {
     weekPointsEarned += Number(week.playerPoints?.[id] || 0);
+    const p = getPlayer(id);
+    if (p) totalValue += Number(p.price !== undefined ? p.price : 10);
   });
+
+  const MAX_BUDGET = 75;
+  const remainingBudget = MAX_BUDGET - totalValue;
 
   const selectedListHTML = selectedIds.map(id => {
     const p = getPlayer(id);
     if (!p) return '';
     const pts = week.playerPoints?.[id] ?? '-';
+    const priceVal = p.price !== undefined ? p.price : 10;
     return `
       <div class="player-pick-row">
         ${miniAvatarHTML(p)}
-        <div class="pname">${escapeHtml(p.name)}</div>
+        <div class="pname">${escapeHtml(p.name)} <span style="font-size:0.75rem; color:#888;">(${priceVal}M €)</span></div>
         <div style="font-weight:bold;margin-right:8px;">Puan: ${pts}</div>
         ${!isLocked ? `<button class="btn small danger" onclick="toggleSelectPlayer('${week.id}','${p.id}')">Çıkar</button>` : ''}
       </div>`;
   }).join('');
 
   const remainingPlayers = state.players.filter(p => !selectedIds.includes(p.id));
-  const availableListHTML = remainingPlayers.map(p => `
+  const availableListHTML = remainingPlayers.map(p => {
+    const priceVal = p.price !== undefined ? p.price : 10;
+    return `
     <div class="player-pick-row">
       ${miniAvatarHTML(p)}
-      <div class="pname">${escapeHtml(p.name)}</div>
+      <div class="pname">${escapeHtml(p.name)} <span style="font-size:0.75rem; color:#888;">(${priceVal}M €)</span></div>
       ${!isLocked ? `<button class="btn small" onclick="toggleSelectPlayer('${week.id}','${p.id}')">Ekle</button>` : ''}
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
   app.innerHTML = `
     ${topbarHTML('Kadro Kur')}
@@ -532,6 +544,21 @@ function renderFantasySquad(weekParam) {
         <div style="font-size:1.1rem;font-weight:bold;margin-top:8px;">Bu Hafta Kazanılan Puan: ⭐ ${weekPointsEarned}</div>
       </div>
 
+      <div class="card" style="display:flex; justify-style:space-between; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <div>
+          <div style="font-size:0.8rem; color:var(--ink-soft);">Top. Kadro Değeri</div>
+          <div style="font-weight:bold; font-size:1.1rem; color:${totalValue > MAX_BUDGET ? 'var(--red-card)' : 'var(--pitch)'};">
+            ${totalValue}M € / ${MAX_BUDGET}M €
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:0.8rem; color:var(--ink-soft);">Kalan Bütçe</div>
+          <div style="font-weight:bold; font-size:1.1rem; color:${remainingBudget < 0 ? 'var(--red-card)' : '#FFC125'};">
+            ${remainingBudget}M €
+          </div>
+        </div>
+      </div>
+
       <div class="section-title">Seçtiğin Kadro (${selectedIds.length} / 7)</div>
       <div class="card">${selectedListHTML || '<p style="color:var(--ink-soft);font-size:0.85rem;">Henüz futbolcu seçilmedi.</p>'}</div>
 
@@ -544,6 +571,7 @@ function renderFantasySquad(weekParam) {
 function toggleSelectPlayer(weekId, playerId) {
   const squadKey = `${currentUser.username}_${weekId}`;
   let squad = [...(state.userSquads[squadKey] || [])];
+  const targetPlayer = getPlayer(playerId);
 
   if (squad.includes(playerId)) {
     squad = squad.filter(id => id !== playerId);
@@ -552,6 +580,21 @@ function toggleSelectPlayer(weekId, playerId) {
       toast('En fazla 7 futbolcu seçebilirsin!');
       return;
     }
+
+    let currentTotal = 0;
+    squad.forEach(id => {
+      const p = getPlayer(id);
+      if (p) currentTotal += Number(p.price !== undefined ? p.price : 10);
+    });
+
+    const targetPrice = Number(targetPlayer && targetPlayer.price !== undefined ? targetPlayer.price : 10);
+    const newTotal = currentTotal + targetPrice;
+
+    if (newTotal > 75) {
+      toast(`Bütçe yetersiz! Kadro değeri 75M € sınırını aşamaz. (Gereken: ${newTotal}M €)`);
+      return;
+    }
+
     squad.push(playerId);
   }
 
@@ -634,6 +677,7 @@ function renderHostPanel(weekParam) {
     const weeklyStat = (week.playerWeeklyStats && week.playerWeeklyStats[p.id]) || { goals: 0, assists: 0 };
     const goals = weeklyStat.goals || 0;
     const assists = weeklyStat.assists || 0;
+    const priceVal = p.price !== undefined ? p.price : 10;
 
     return `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #eee;">
@@ -642,6 +686,10 @@ function renderHostPanel(weekParam) {
           <span style="font-weight:600;font-size:0.88rem;">${escapeHtml(p.name)}</span>
         </div>
         <div style="display:flex;gap:6px;align-items:center;">
+          <div class="num-input-group">
+            <label>Fiyat (M€)</label>
+            <input type="number" step="0.5" value="${priceVal}" onchange="updatePlayerPrice('${p.id}',this.value)">
+          </div>
           <div class="num-input-group">
             <label>Puan</label>
             <input type="number" value="${currentPts}" onchange="updateHostPlayerPoint('${week.id}','${p.id}',this.value)">
@@ -683,11 +731,19 @@ function renderHostPanel(weekParam) {
         <div style="margin-top:12px;">${playerPointsRows}</div>
       </div>
 
-            <div class="card" style="margin-top:15px; display:flex; gap:10px;">
+      <div class="card" style="margin-top:15px; display:flex; gap:10px;">
         <button class="btn block secondary" style="flex:1;" onclick="addNewWeek()">➕ Yeni Hafta Ekle (Hafta ${state.nextWeekNumber})</button>
         <button class="btn block danger" style="flex:1; background-color:#dc3545; color:#fff;" onclick="deleteWeek('${week.id}')">🗑️ Bu Haftayı Sil</button>
       </div>
     </div>`;
+}
+
+function updatePlayerPrice(playerId, val) {
+  const p = getPlayer(playerId);
+  if (!p) return;
+  p.price = Number(val) || 0;
+  saveState();
+  toast(`${p.name} fiyatı ${p.price}M € olarak güncellendi`);
 }
 
 function saveMatchDate(weekId) {
@@ -1149,11 +1205,12 @@ function renderPlayers() {
 
   const rows = state.players.map(p => {
     const totalStats = getPlayerTotalStats(p.id);
+    const priceVal = p.price !== undefined ? p.price : 10;
     return `
       <div class="player-card" onclick="openPlayerPhotoModal('${p.id}')">
         ${avatarHTML(p)}
         <div class="pname">${escapeHtml(p.name)}</div>
-        <div class="pstats">#${p.squadNumber} | ⚽ ${totalStats.goals} | 🅰️ ${totalStats.assists}</div>
+        <div class="pstats">#${p.squadNumber} | 💶 ${priceVal}M € | ⚽ ${totalStats.goals} | 🅰️ ${totalStats.assists}</div>
       </div>`;
   }).join('');
 
@@ -1168,12 +1225,13 @@ function openPlayerPhotoModal(playerId) {
   const p = getPlayer(playerId);
   if (!p) return;
   const totalStats = getPlayerTotalStats(p.id);
+  const priceVal = p.price !== undefined ? p.price : 10;
 
   openSheet(`
     <div style="text-align:center;">
       ${avatarHTML(p)}
       <h3>${escapeHtml(p.name)}</h3>
-      <p style="color:var(--ink-soft);font-size:0.85rem;">Forma No: #${p.squadNumber}</p>
+      <p style="color:var(--ink-soft);font-size:0.85rem;">Forma No: #${p.squadNumber} | Değer: ${priceVal}M €</p>
       <div style="display:flex;justify-content:center;gap:15px;margin-top:10px;">
         <div class="pill">⚽ Toplam Gol: ${totalStats.goals}</div>
         <div class="pill">🅰️ Toplam Asist: ${totalStats.assists}</div>
