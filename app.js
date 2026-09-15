@@ -590,7 +590,7 @@ function toggleSelectPlayer(weekId, playerId) {
     const targetPrice = Number(targetPlayer && targetPlayer.price !== undefined ? targetPlayer.price : 10);
     const newTotal = currentTotal + targetPrice;
 
-    if (newTotal > 75) {
+    if (newTotal > 100) {
       toast(`Bütçe yetersiz! Kadro değeri 75M € sınırını aşamaz. (Gereken: ${newTotal}M €)`);
       return;
     }
