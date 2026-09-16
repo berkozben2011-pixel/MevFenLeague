@@ -267,17 +267,23 @@ function openSheet(innerHTML) {
 }
 
 /* ---------------- UI Render Yardımcıları ---------------- */
+/* ---------------- UI Render Yardımcıları ---------------- */
 function avatarHTML(player) {
   if (!player) return `<div class="avatar" style="background:#256E48;">?</div>`;
-  const style = player.photo ? `background-image:url('${player.photo}');` : `background:${player.color};`;
+  const style = player.photo 
+    ? `background-image:url('${player.photo}'); background-size:contain; background-repeat:no-repeat; background-position:center; border-radius:8px;` 
+    : `background:${player.color}; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:bold;`;
   return `<div class="avatar" style="${style}">${player.photo ? '' : initials(player.name)}</div>`;
 }
 
 function miniAvatarHTML(player) {
   if (!player) return `<div class="mini-avatar" style="background:#256E48;">?</div>`;
-  const style = player.photo ? `background-image:url('${player.photo}');` : `background:${player.color};`;
+  const style = player.photo 
+    ? `background-image:url('${player.photo}'); background-size:contain; background-repeat:no-repeat; background-position:center; border-radius:6px;` 
+    : `background:${player.color}; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:bold;`;
   return `<div class="mini-avatar" style="${style}">${player.photo ? '' : initials(player.name)}</div>`;
 }
+
 
 function topbarHTML(title, backHash) {
   return `
