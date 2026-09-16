@@ -89,6 +89,7 @@ function buildDefaultState() {
       score: { A: 0, B: 0, entered: false }
     }],
     totw: {},
+    lineups: {},
     userSquads: {},
     predictions: {},
     nextWeekNumber: 2
@@ -139,6 +140,7 @@ function applyLoadedCoreState(loaded) {
   }
 
   state.totw = loaded.totw || {};
+  state.lineups = loaded.lineups || {};
   state.predictions = loaded.predictions || {};
   state.nextWeekNumber =
     Number(loaded.nextWeekNumber) ||
@@ -317,6 +319,7 @@ function render() {
     case 'goals': return renderStatsRanking('goals');
     case 'assists': return renderStatsRanking('assists');
     case 'totw': return renderTOTW(param);
+    case 'lineups': return renderLineups(param);
     case 'predictions': return renderPredictions(param);
     default: return renderHome();
   }
@@ -428,6 +431,11 @@ function renderHome() {
     </div>
 
     <div class="menu-grid">
+      <div class="menu-card wide" onclick="go('#/lineups')">
+        <div class="icon">🗒️</div>
+        <div class="label">Bu Haftanın Kadroları</div>
+        <div class="stripe"></div>
+      </div>
       <div class="menu-card wide accent" onclick="go('#/fantasysquad')">
         <div class="icon">📋</div>
         <div class="label">7 Kişilik Kadronu Kur</div>
@@ -1290,4 +1298,289 @@ async function handlePhotoUpload(event, playerId) {
     toast('Fotoğraf güncellendi');
   };
   reader.readAsDataURL(file);
+}
+
+/* =========================================================
+   9. BU HAFTANIN KADROLARI (HOST'UN KURDUĞU SAHA DİZİLİŞİ)
+   ========================================================= */
+function getLineupData(weekId) {
+  if (!state.lineups) state.lineups = {};
+  if (!state.lineups[weekId]) {
+    state.lineups[weekId] = {
+      teamNames: { A: 'Takım A', B: 'Takım B' },
+      players: [],
+      published: false
+    };
+  }
+  const d = state.lineups[weekId];
+  if (!d.teamNames) d.teamNames = { A: 'Takım A', B: 'Takım B' };
+  if (!d.players) d.players = [];
+  return d;
+}
+
+function lineupAvatarHTML(player, team) {
+  if (!player) return `<div class="avatar">?</div>`;
+  const teamClass = team === 'B' ? 'teamB' : 'teamA';
+  const style = player.photo
+    ? `background-image:url('${player.photo}'); border-radius:8px;`
+    : `background:${player.color}; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:bold;`;
+  return `<div class="avatar ${teamClass}" style="${style}">${player.photo ? '' : initials(player.name)}</div>`;
+}
+
+function lineupTokenHTML(weekId, entry, editable) {
+  const p = getPlayer(entry.playerId);
+  if (!p) return '';
+  const firstName = (p.name || '').trim().split(/\s+/)[0] || p.name;
+  const dragAttrs = editable
+    ? `onmousedown="beginLineupDrag(event,this,'${weekId}','${entry.id}')" ontouchstart="beginLineupDrag(event,this,'${weekId}','${entry.id}')"`
+    : `onclick="openPlayerPhotoModal('${p.id}')"`;
+  return `
+    <div class="token" style="left:${entry.x}%;top:${entry.y}%;" ${dragAttrs}>
+      <div class="name-tag">${escapeHtml(firstName)}</div>
+      ${lineupAvatarHTML(p, entry.team)}
+      ${editable ? `<div onmousedown="event.stopPropagation();" ontouchstart="event.stopPropagation();" onclick="event.stopPropagation();removeLineupPlayer('${weekId}','${entry.id}')" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red-card);color:#fff;font-size:0.62rem;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 4px rgba(0,0,0,0.3);">✕</div>` : ''}
+    </div>
+  `;
+}
+
+function lineupPitchLinesSVG() {
+  return `
+    <svg class="lines" viewBox="0 0 300 400" preserveAspectRatio="none">
+      <rect x="8" y="8" width="284" height="384" fill="none" stroke="rgba(244,247,242,0.4)" stroke-width="2"/>
+      <line x1="8" y1="200" x2="292" y2="200" stroke="rgba(244,247,242,0.4)" stroke-width="2"/>
+      <circle cx="150" cy="200" r="45" fill="none" stroke="rgba(244,247,242,0.4)" stroke-width="2"/>
+      <circle cx="150" cy="200" r="2.5" fill="rgba(244,247,242,0.4)"/>
+      <rect x="85" y="8" width="130" height="55" fill="none" stroke="rgba(244,247,242,0.4)" stroke-width="2"/>
+      <rect x="120" y="8" width="60" height="22" fill="none" stroke="rgba(244,247,242,0.4)" stroke-width="2"/>
+      <rect x="85" y="337" width="130" height="55" fill="none" stroke="rgba(244,247,242,0.4)" stroke-width="2"/>
+      <rect x="120" y="370" width="60" height="22" fill="none" stroke="rgba(244,247,242,0.4)" stroke-width="2"/>
+    </svg>
+  `;
+}
+
+function renderLineups(weekParam) {
+  const weeks = getSortedWeeks();
+  let week = weekParam ? getWeek(weekParam) : latestWeek();
+  const app = document.getElementById('app');
+
+  if (!week) {
+    app.innerHTML = `${topbarHTML('Bu Haftanın Kadroları')} <div class="page"><p>Henüz hafta tanımlanmadı.</p></div>`;
+    return;
+  }
+
+  const idx = weeks.findIndex(w => w.id === week.id);
+  const prevWeek = idx > 0 ? weeks[idx - 1] : null;
+  const nextWeek = idx < weeks.length - 1 ? weeks[idx + 1] : null;
+
+  const data = getLineupData(week.id);
+  const host = isHost();
+  const placedIds = data.players.map(p => p.playerId);
+  const availablePlayers = state.players.filter(p => !placedIds.includes(p.id));
+  const tokensHTML = data.players.map(entry => lineupTokenHTML(week.id, entry, host)).join('');
+
+  let html = `
+    ${topbarHTML('Bu Haftanın Kadroları')}
+    <div class="page">
+      <div class="week-switch">
+        <button ${prevWeek ? '' : 'disabled'} onclick="go('#/lineups/${prevWeek ? prevWeek.id : ''}')">‹</button>
+        <div class="week-chip">HAFTA ${week.weekNumber}</div>
+        <button ${nextWeek ? '' : 'disabled'} onclick="go('#/lineups/${nextWeek ? nextWeek.id : ''}')">›</button>
+      </div>
+
+      <div class="match-title">
+        <div class="teams">
+          <span class="teamB">${escapeHtml(data.teamNames.B)}</span>
+          <span class="vs">VS</span>
+          <span class="teamA">${escapeHtml(data.teamNames.A)}</span>
+        </div>
+      </div>
+  `;
+
+  if (!host && !data.published) {
+    html += `
+      <div class="empty-state" style="margin-top:16px;">
+        <p>Bu hafta için kadrolar henüz host tarafından yayınlanmadı.</p>
+      </div>
+    `;
+  } else {
+    html += `
+      <div class="pitch-wrap" style="margin-top:14px;">
+        <div class="pitch" id="lineupPitch">
+          ${lineupPitchLinesSVG()}
+          <div class="pitch-half-label top">${escapeHtml(data.teamNames.B)}</div>
+          <div class="pitch-half-label bottom">${escapeHtml(data.teamNames.A)}</div>
+          ${tokensHTML}
+        </div>
+      </div>
+      ${!host ? `<div style="text-align:center;color:rgba(244,247,242,0.55);font-size:0.75rem;margin-top:4px;">${data.published ? '✅ Kadro host tarafından yayınlandı' : ''}</div>` : ''}
+    `;
+  }
+
+  if (host) {
+    html += `
+      <div class="card" style="margin-top:16px;">
+        <h3>⚙️ Host: Takım İsimleri</h3>
+        <div style="display:flex;gap:10px;margin-top:10px;">
+          <div style="flex:1;">
+            <label class="field-label">Takım A (Alt Saha)</label>
+            <input type="text" id="lineupTeamAName" value="${escapeHtml(data.teamNames.A)}">
+          </div>
+          <div style="flex:1;">
+            <label class="field-label">Takım B (Üst Saha)</label>
+            <input type="text" id="lineupTeamBName" value="${escapeHtml(data.teamNames.B)}">
+          </div>
+        </div>
+        <button class="btn block secondary" style="margin-top:10px;" onclick="saveLineupTeamNames('${week.id}')">Takım İsimlerini Kaydet</button>
+      </div>
+
+      <div class="card" style="margin-top:14px;">
+        <h3>➕ Sahaya Oyuncu Ekle</h3>
+        ${availablePlayers.length === 0 ? `<p style="color:var(--ink-soft);font-size:0.85rem;margin-top:8px;">Tüm oyuncular sahada.</p>` : `
+        <div class="field-set" style="margin-top:10px;">
+          <div class="row">
+            <select id="lineupAddPlayerSelect">
+              ${availablePlayers.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="row">
+            <select id="lineupAddPlayerTeam">
+              <option value="A">${escapeHtml(data.teamNames.A)} (Alt Saha)</option>
+              <option value="B">${escapeHtml(data.teamNames.B)} (Üst Saha)</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn block" onclick="addLineupPlayer('${week.id}')">Sahaya Ekle</button>
+        `}
+        <p style="color:var(--ink-soft);font-size:0.78rem;margin-top:10px;">💡 Oyuncuları sahadaki mevkilerine sürükleyerek yerleştirebilirsin. Konumlar otomatik kaydedilir.</p>
+      </div>
+
+      <div class="card" style="margin-top:14px;text-align:center;">
+        ${data.published
+          ? `<div style="color:var(--pitch);font-weight:700;margin-bottom:10px;">✅ Bu hafta yayında</div>
+             <div style="display:flex;gap:10px;">
+               <button class="btn block" onclick="publishLineup('${week.id}')">Değişiklikleri Kaydet</button>
+               <button class="btn block secondary" onclick="unpublishLineup('${week.id}')">Yayından Kaldır</button>
+             </div>`
+          : `<button class="btn block" onclick="publishLineup('${week.id}')">Kadroyu Kaydet &amp; Yayınla</button>`
+        }
+      </div>
+    `;
+  }
+
+  html += `</div>`;
+  app.innerHTML = html;
+}
+
+function beginLineupDrag(e, tokenEl, weekId, entryId) {
+  if (!isHost()) return;
+  e.preventDefault();
+  const pitch = document.getElementById('lineupPitch');
+  if (!pitch) return;
+  tokenEl.style.zIndex = 30;
+
+  function getPoint(ev) {
+    return (ev.touches && ev.touches.length) ? ev.touches[0] : ev;
+  }
+
+  function move(ev) {
+    ev.preventDefault();
+    const rect = pitch.getBoundingClientRect();
+    const pt = getPoint(ev);
+    let x = ((pt.clientX - rect.left) / rect.width) * 100;
+    let y = ((pt.clientY - rect.top) / rect.height) * 100;
+    x = Math.max(4, Math.min(96, x));
+    y = Math.max(6, Math.min(94, y));
+    tokenEl.style.left = x + '%';
+    tokenEl.style.top = y + '%';
+    tokenEl.dataset.px = x;
+    tokenEl.dataset.py = y;
+  }
+
+  function end() {
+    document.removeEventListener('mousemove', move);
+    document.removeEventListener('mouseup', end);
+    document.removeEventListener('touchmove', move);
+    document.removeEventListener('touchend', end);
+    tokenEl.style.zIndex = '';
+    const px = tokenEl.dataset.px, py = tokenEl.dataset.py;
+    if (px !== undefined && py !== undefined) {
+      const data = getLineupData(weekId);
+      const entry = data.players.find(p => p.id === entryId);
+      if (entry) {
+        entry.x = parseFloat(px);
+        entry.y = parseFloat(py);
+        saveState();
+      }
+    }
+  }
+
+  document.addEventListener('mousemove', move);
+  document.addEventListener('mouseup', end);
+  document.addEventListener('touchmove', move, { passive: false });
+  document.addEventListener('touchend', end);
+}
+
+function addLineupPlayer(weekId) {
+  if (!isHost()) return;
+  const sel = document.getElementById('lineupAddPlayerSelect');
+  const teamSel = document.getElementById('lineupAddPlayerTeam');
+  if (!sel || !sel.value) { toast('Lütfen bir oyuncu seç'); return; }
+  const playerId = sel.value;
+  const team = (teamSel && teamSel.value === 'B') ? 'B' : 'A';
+
+  const data = getLineupData(weekId);
+  if (data.players.some(p => p.playerId === playerId)) {
+    toast('Bu oyuncu zaten sahada');
+    return;
+  }
+  data.players.push({
+    id: uid(),
+    playerId,
+    team,
+    x: 50,
+    y: team === 'A' ? 75 : 25
+  });
+  saveState();
+  toast('Oyuncu sahaya eklendi');
+  renderLineups(weekId);
+}
+
+function removeLineupPlayer(weekId, entryId) {
+  if (!isHost()) return;
+  const data = getLineupData(weekId);
+  data.players = data.players.filter(p => p.id !== entryId);
+  saveState();
+  toast('Oyuncu sahadan çıkarıldı');
+  renderLineups(weekId);
+}
+
+function saveLineupTeamNames(weekId) {
+  if (!isHost()) return;
+  const data = getLineupData(weekId);
+  const aEl = document.getElementById('lineupTeamAName');
+  const bEl = document.getElementById('lineupTeamBName');
+  const aName = (aEl && aEl.value.trim()) || 'Takım A';
+  const bName = (bEl && bEl.value.trim()) || 'Takım B';
+  data.teamNames = { A: aName, B: bName };
+  saveState();
+  toast('Takım isimleri güncellendi');
+  renderLineups(weekId);
+}
+
+function publishLineup(weekId) {
+  if (!isHost()) return;
+  const data = getLineupData(weekId);
+  data.published = true;
+  saveState();
+  toast("Kadrolar yayınlandı! 🎉");
+  renderLineups(weekId);
+}
+
+function unpublishLineup(weekId) {
+  if (!isHost()) return;
+  const data = getLineupData(weekId);
+  data.published = false;
+  saveState();
+  toast('Yayın kaldırıldı, kadro taslak durumunda');
+  renderLineups(weekId);
 }
