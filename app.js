@@ -321,6 +321,10 @@ function render() {
     case 'totw': return renderTOTW(param);
     case 'lineups': return renderLineups(param);
     case 'predictions': return renderPredictions(param);
+   // app.js - Route Mantığı
+case 'potw':
+  appEl.innerHTML = renderPlayerOfTheWeekPage();
+  break;
     default: return renderHome();
   }
 }
@@ -872,6 +876,125 @@ function deleteWeek(weekId) {
   const lastRemainingWeek = state.weeks[state.weeks.length - 1];
   go('#/hostpanel/' + lastRemainingWeek.id);
 }
+
+// ==========================================
+// HAFTANIN OYUNCUSU (PLAYER OF THE WEEK)
+// ==========================================
+
+// Sayfa Arayüzü
+function renderPlayerOfTheWeekPage() {
+  const currentWeek = state.currentWeek || 1;
+  const isHost = state.isHost || false;
+  const potwData = getPOTWData(currentWeek);
+
+  // Seçilen oyuncunun bilgilerini getir
+  const selectedPlayer = state.players?.find(p => p.id === potwData.playerId);
+
+  return `
+    <div class="topbar">
+      <button class="backbtn" onclick="navigateTo('home')">← Geri</button>
+      <div class="pagetitle">HAFTANIN OYUNCUSU</div>
+    </div>
+
+    <div class="page">
+      <!-- Hafta Seçici -->
+      <div class="week-switch">
+        <button onclick="changePOTWWeek(-1)">‹</button>
+        <div class="week-chip">HAFTA ${currentWeek}</div>
+        <button onclick="changePOTWWeek(1)">›</button>
+      </div>
+
+      <!-- Haftanın Oyuncusu Kartı -->
+      ${selectedPlayer ? `
+        <div class="card" style="text-align:center; padding:24px 16px; background: linear-gradient(180deg, #FFFDF8 0%, #FFF3D1 100%); border: 2px solid var(--gold);">
+          <div style="font-size: 2.5rem; margin-bottom: 6px;">👑</div>
+          <div style="font-family:'Bebas Neue'; font-size:1.1rem; color:var(--gold-deep); letter-spacing:0.1em;">HAFTANIN YILDIZI</div>
+          
+          <div class="avatar" style="width:110px; height:110px; margin: 14px auto; border: 4px solid var(--gold); border-radius: 16px; box-shadow: 0 8px 20px rgba(0,0,0,0.2); background-size:contain; background-position:center; background-repeat:no-repeat;">
+            ${selectedPlayer.photoUrl 
+              ? `<img src="${selectedPlayer.photoUrl}" style="width:100%;height:100%;object-fit:contain;">`
+              : `<span style="font-size:2.5rem;">${selectedPlayer.name.substring(0,2).toUpperCase()}</span>`}
+          </div>
+
+          <h2 style="color:var(--ink); font-size: 2.2rem; margin-top:6px;">${selectedPlayer.name}</h2>${potwData.note ? `<p style="color:var(--ink-soft); font-size:0.9rem; font-style:italic; margin-top:8px;">"${potwData.note}"</p>` : ''}
+        </div>
+      ` : `
+        <div class="empty-state">
+          <div style="font-size:2.5rem; margin-bottom:10px;">🌟</div>
+          <p>Bu hafta için henüz Haftanın Oyuncusu seçilmedi.</p>
+        </div>
+      `}
+
+      <!-- Host Yönetim Paneli -->
+      ${isHost ? `
+        <div class="card" style="margin-top:16px;">
+          <h3 style="color:var(--ink); font-size:1.2rem; margin-bottom:12px;">Host Yönetimi</h3>
+          
+          <label class="field-label">Oyuncu Seç</label>
+          <select id="potwPlayerSelect" class="select-field">
+            <option value="">-- Oyuncu Seçin --</option>
+            ${(state.players || []).map(p => `
+              <option value="${p.id}" ${potwData.playerId === p.id ? 'selected' : ''}>${p.name}</option>
+            `).join('')}
+          </select>
+
+          <label class="field-label">Host Açıklaması / Öne Çıkan Performans (Opsiyonel)</label>
+          <input type="text" id="potwNoteInput" value="${potwData.note || ''}" placeholder="Örn: 3 Gol 2 Asistlik harika performans!" style="margin-bottom:14px;">
+
+          <button class="btn block" onclick="savePOTW()">🌟 Haftanın Oyuncusunu Yayınla</button>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+// Hafta Değiştirme
+function changePOTWWeek(delta) {
+  state.currentWeek = Math.max(1, (state.currentWeek || 1) + delta);
+  navigateTo('potw');
+}
+
+// Veriyi Getirme (Lokal veya Varsayılan)
+function getPOTWData(week) {
+  const local = localStorage.getItem(`potw_week_${week}`);
+  if (local) return JSON.parse(local);
+  return { playerId: null, note: '' };
+}
+
+// Host Kaydetme ve Yayınlama Mantığı
+async function savePOTW() {
+  const currentWeek = state.currentWeek || 1;
+  const playerId = document.getElementById('potwPlayerSelect').value;
+  const note = document.getElementById('potwNoteInput').value;
+
+  if (!playerId) {
+    showToast("Lütfen bir oyuncu seçin!");
+    return;
+  }
+
+  const payload = {
+    week: currentWeek,
+    playerId: playerId,
+    note: note
+  };
+
+  // 1. Yerel Depolama
+  localStorage.setItem(`potw_week_${currentWeek}`, JSON.stringify(payload));
+
+  // 2. Supabase / Bulut Kaydı
+  if (window.supabase) {
+    const { error } = await supabase
+      .from('potw')
+      .upsert({ week_id: currentWeek, data: payload });
+
+    if (error) console.error("Supabase POTW kayıt hatası:", error);
+  }
+
+  showToast("Haftanın Oyuncusu başarıyla yayınlandı! 👑");
+  navigateTo('potw');
+}
+
+
 
 
 /* =========================================================
