@@ -36,7 +36,7 @@ function logout() {
   toast('Çıkış yapıldı');
 }
 
-/* ---------------- Yardimcilar ---------------- */
+/* ---------------- Yardımcılar ---------------- */
 function uid() {
   return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 9);
 }
@@ -84,11 +84,12 @@ function buildDefaultState() {
       weekNumber: 1,
       matchDate: '',
       playerPoints: {},
-      playerWeeklyStats: {}, // { playerId: { goals: 0, assists: 0 } }
+      playerWeeklyStats: {},
       lineup: [],
       score: { A: 0, B: 0, entered: false }
     }],
     totw: {},
+    potw: {},
     lineups: {},
     userSquads: {},
     predictions: {},
@@ -140,6 +141,7 @@ function applyLoadedCoreState(loaded) {
   }
 
   state.totw = loaded.totw || {};
+  state.potw = loaded.potw || {};
   state.lineups = loaded.lineups || {};
   state.predictions = loaded.predictions || {};
   state.nextWeekNumber =
@@ -220,7 +222,6 @@ function latestWeek() {
   return sorted.length ? sorted[sorted.length - 1] : null;
 }
 
-// Oyuncunun tüm haftalardaki gol ve asistlerinin toplamını hesaplar
 function getPlayerTotalStats(playerId) {
   let goals = 0;
   let assists = 0;
@@ -269,7 +270,6 @@ function openSheet(innerHTML) {
 }
 
 /* ---------------- UI Render Yardımcıları ---------------- */
-/* ---------------- UI Render Yardımcıları ---------------- */
 function avatarHTML(player) {
   if (!player) return `<div class="avatar" style="background:#256E48;">?</div>`;
   const style = player.photo 
@@ -285,7 +285,6 @@ function miniAvatarHTML(player) {
     : `background:${player.color}; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:bold;`;
   return `<div class="mini-avatar" style="${style}">${player.photo ? '' : initials(player.name)}</div>`;
 }
-
 
 function topbarHTML(title, backHash) {
   return `
@@ -319,10 +318,9 @@ function render() {
     case 'goals': return renderStatsRanking('goals');
     case 'assists': return renderStatsRanking('assists');
     case 'totw': return renderTOTW(param);
+    case 'potw': return renderPOTW(param);
     case 'lineups': return renderLineups(param);
     case 'predictions': return renderPredictions(param);
-   // app.js - Route Mantığı
-    case 'potw': return renderPOTW(param)
     default: return renderHome();
   }
 }
@@ -468,15 +466,16 @@ function renderHome() {
         <div class="label">Tahmin</div>
         <div class="stripe"></div>
       </div>
-      <div class="menu-card wide" onclick="go('#/totw')">
+      <div class="menu-card" onclick="go('#/totw')">
         <div class="icon">🌟</div>
         <div class="label">Haftanın 6'sı</div>
         <div class="stripe"></div>
       </div>
-      <div class="label" style="color: #000;">HAFTANIN OYUNCUSU</div>
-    </div>
-    <div class="icon">👑</div>
-  </div>
+      <div class="menu-card" onclick="go('#/potw')">
+        <div class="icon">👑</div>
+        <div class="label">Haftanın Oyuncusu</div>
+        <div class="stripe"></div>
+      </div>
       ${isHost() ? `
       <div class="menu-card wide" style="border: 2px solid #FFC125;" onclick="go('#/hostpanel')">
         <div class="icon">⚙️</div>
@@ -564,11 +563,11 @@ function renderFantasySquad(weekParam) {
         <div style="font-size:1.1rem;font-weight:bold;margin-top:8px;">Bu Hafta Kazanılan Puan: ⭐ ${weekPointsEarned}</div>
       </div>
 
-      <div class="card" style="display:flex; justify-style:space-between; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <div class="card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
         <div>
           <div style="font-size:0.8rem; color:var(--ink-soft);">Top. Kadro Değeri</div>
           <div style="font-weight:bold; font-size:1.1rem; color:${totalValue > MAX_BUDGET ? 'var(--red-card)' : 'var(--pitch)'};">
-            ${totalValue}M € / 100 €
+            ${totalValue}M € / 100M €
           </div>
         </div>
         <div style="text-align:right;">
@@ -611,7 +610,7 @@ function toggleSelectPlayer(weekId, playerId) {
     const newTotal = currentTotal + targetPrice;
 
     if (newTotal > 100) {
-      toast(`Bütçe yetersiz! Kadro değeri 75M € sınırını aşamaz. (Gereken: ${newTotal}M €)`);
+      toast(`Bütçe yetersiz! Kadro değeri 100M € sınırını aşamaz. (Gereken: ${newTotal}M €)`);
       return;
     }
 
@@ -711,6 +710,10 @@ function renderHostPanel(weekParam) {
             <input type="number" step="0.5" value="${priceVal}" onchange="updatePlayerPrice('${p.id}',this.value)">
           </div>
           <div class="num-input-group">
+            <label>Forma No</label>
+            <input type="number" value="${p.squadNumber || ''}" onchange="updatePlayerSquadNumber('${p.id}', this.value)">
+          </div>
+          <div class="num-input-group">
             <label>Puan</label>
             <input type="number" value="${currentPts}" onchange="updateHostPlayerPoint('${week.id}','${p.id}',this.value)">
           </div>
@@ -722,11 +725,6 @@ function renderHostPanel(weekParam) {
             <label>Asist</label>
             <input type="number" value="${assists}" onchange="updatePlayerWeeklyStat('${week.id}','${p.id}','assists',this.value)">
           </div>
-          // Puan, Gol, Asist girdilerinin yanına Forma No girdisini ekleyin:
-<div class="num-input-group">
-  <label>Forma No</label>
-  <input type="number" value="${p.squadNumber || ''}" onchange="updatePlayerSquadNumber('${p.id}', this.value)">
-</div>
         </div>
       </div>`;
   }).join('');
@@ -816,7 +814,6 @@ function updatePlayerSquadNumber(playerId, val) {
   toast(`${p.name} forma numarası #${p.squadNumber} olarak güncellendi`);
 }
 
-
 function updatePlayerWeeklyStat(weekId, playerId, statKey, val) {
   const week = getWeek(weekId);
   if (!week) return;
@@ -847,7 +844,6 @@ function addNewWeek() {
 }
 
 function deleteWeek(weekId) {
-  // Sadece 1 hafta kaldıysa silinmesini engeller
   if (state.weeks.length <= 1) {
     toast('En az 1 hafta bulunmalıdır, son haftayı silemezsiniz!');
     return;
@@ -859,145 +855,101 @@ function deleteWeek(weekId) {
   const confirmDelete = confirm(`Hafta ${weekToDelete.weekNumber} silinecektir. Emin misiniz?`);
   if (!confirmDelete) return;
 
-  // Silinecek haftayı listeden çıkar
   state.weeks = state.weeks.filter(w => w.id !== weekId);
-
-  // Kalan haftaların hafta numaralarını sıralı şekilde yeniden düzenle
   state.weeks.sort((a, b) => a.weekNumber - b.weekNumber);
   state.weeks.forEach((w, index) => {
     w.weekNumber = index + 1;
   });
 
-  // Sonraki eklenecek hafta numarasını güncelle
   state.nextWeekNumber = state.weeks.length + 1;
-
   saveState();
   toast('Hafta başarıyla silindi');
 
-  // Silinen haftadan sonra kalan son haftanın ekranına yönlendir
   const lastRemainingWeek = state.weeks[state.weeks.length - 1];
   go('#/hostpanel/' + lastRemainingWeek.id);
 }
 
-// ==========================================
-// HAFTANIN OYUNCUSU (PLAYER OF THE WEEK)
-// ==========================================
+/* =========================================================
+   HAFTANIN OYUNCUSU (POTW)
+   ========================================================= */
+function renderPOTW(weekParam) {
+  const weeks = getSortedWeeks();
+  let week = weekParam ? getWeek(weekParam) : latestWeek();
+  const app = document.getElementById('app');
 
-// Sayfa Arayüzü
-function renderPlayerOfTheWeekPage() {
-  const currentWeek = state.currentWeek || 1;
-  const isHost = state.isHost || false;
-  const potwData = getPOTWData(currentWeek);
+  if (!week) {
+    app.innerHTML = `${topbarHTML('Haftanın Oyuncusu')} <div class="page"><p>Hafta bulunamadı</p></div>`;
+    return;
+  }
 
-  // Seçilen oyuncunun bilgilerini getir
-  const selectedPlayer = state.players?.find(p => p.id === potwData.playerId);
+  const idx = weeks.findIndex(w => w.id === week.id);
+  const prevWeek = idx > 0 ? weeks[idx - 1] : null;
+  const nextWeek = idx < weeks.length - 1 ? weeks[idx + 1] : null;
 
-  return `
-    <div class="topbar">
-      <button class="backbtn" onclick="navigateTo('home')">← Geri</button>
-      <div class="pagetitle">HAFTANIN OYUNCUSU</div>
-    </div>
+  const potwData = (state.potw && state.potw[week.id]) || { playerId: null, note: '' };
+  const selectedPlayer = getPlayer(potwData.playerId);
 
+  app.innerHTML = `
+    ${topbarHTML('Haftanın Oyuncusu')}
     <div class="page">
-      <!-- Hafta Seçici -->
       <div class="week-switch">
-        <button onclick="changePOTWWeek(-1)">‹</button>
-        <div class="week-chip">HAFTA ${currentWeek}</div>
-        <button onclick="changePOTWWeek(1)">›</button>
+        <button ${prevWeek ? '' : 'disabled'} onclick="go('#/potw/${prevWeek ? prevWeek.id : ''}')">‹</button>
+        <div class="week-chip">HAFTA ${week.weekNumber}</div>
+        <button ${nextWeek ? '' : 'disabled'} onclick="go('#/potw/${nextWeek ? nextWeek.id : ''}')">›</button>
       </div>
 
-      <!-- Haftanın Oyuncusu Kartı -->
       ${selectedPlayer ? `
-        <div class="card" style="text-align:center; padding:24px 16px; background: linear-gradient(180deg, #FFFDF8 0%, #FFF3D1 100%); border: 2px solid var(--gold);">
+        <div class="card" style="text-align:center; padding:24px 16px; background: linear-gradient(180deg, #FFFDF8 0%, #FFF3D1 100%); border: 2px solid #FFC125;">
           <div style="font-size: 2.5rem; margin-bottom: 6px;">👑</div>
-          <div style="font-family:'Bebas Neue'; font-size:1.1rem; color:var(--gold-deep); letter-spacing:0.1em;">HAFTANIN YILDIZI</div>
-          
-          <div class="avatar" style="width:110px; height:110px; margin: 14px auto; border: 4px solid var(--gold); border-radius: 16px; box-shadow: 0 8px 20px rgba(0,0,0,0.2); background-size:contain; background-position:center; background-repeat:no-repeat;">
-            ${selectedPlayer.photoUrl 
-              ? `<img src="${selectedPlayer.photoUrl}" style="width:100%;height:100%;object-fit:contain;">`
-              : `<span style="font-size:2.5rem;">${selectedPlayer.name.substring(0,2).toUpperCase()}</span>`}
-          </div>
-
-          <h2 style="color:var(--ink); font-size: 2.2rem; margin-top:6px;">${selectedPlayer.name}</h2>${potwData.note ? `<p style="color:var(--ink-soft); font-size:0.9rem; font-style:italic; margin-top:8px;">"${potwData.note}"</p>` : ''}
+          <div style="font-size:1.1rem; color:#8A6D0B; letter-spacing:0.1em; font-weight:bold;">HAFTANIN YILDIZI</div>
+          <div style="margin: 14px auto; width:110px;">${avatarHTML(selectedPlayer)}</div>
+          <h2 style="color:var(--ink); font-size: 2rem; margin-top:6px;">${escapeHtml(selectedPlayer.name)}</h2>${potwData.note ? `<p style="color:var(--ink-soft); font-size:0.9rem; font-style:italic; margin-top:8px;">"${escapeHtml(potwData.note)}"</p>` : ''}
         </div>
       ` : `
-        <div class="empty-state">
+        <div class="card" style="text-align:center; padding:20px;">
           <div style="font-size:2.5rem; margin-bottom:10px;">🌟</div>
           <p>Bu hafta için henüz Haftanın Oyuncusu seçilmedi.</p>
         </div>
       `}
 
-      <!-- Host Yönetim Paneli -->
-      ${isHost ? `
+      ${isHost() ? `
         <div class="card" style="margin-top:16px;">
-          <h3 style="color:var(--ink); font-size:1.2rem; margin-bottom:12px;">Host Yönetimi</h3>
-          
-          <label class="field-label">Oyuncu Seç</label>
-          <select id="potwPlayerSelect" class="select-field">
+          <h3>⚙️ Host Yönetimi</h3>
+          <label class="field-label" style="display:block;margin-top:8px;">Oyuncu Seç</label>
+          <select id="potwPlayerSelect" style="width:100%;padding:8px;border-radius:6px;margin-bottom:10px;">
             <option value="">-- Oyuncu Seçin --</option>
-            ${(state.players || []).map(p => `
-              <option value="${p.id}" ${potwData.playerId === p.id ? 'selected' : ''}>${p.name}</option>
+            ${state.players.map(p => `
+              <option value="${p.id}" ${potwData.playerId === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>
             `).join('')}
           </select>
 
-          <label class="field-label">Host Açıklaması / Öne Çıkan Performans (Opsiyonel)</label>
-          <input type="text" id="potwNoteInput" value="${potwData.note || ''}" placeholder="Örn: 3 Gol 2 Asistlik harika performans!" style="margin-bottom:14px;">
+          <label class="field-label" style="display:block;">Açıklama / Performans Notu</label>
+          <input type="text" id="potwNoteInput" value="${escapeHtml(potwData.note || '')}" placeholder="Örn: 3 Gol 2 Asistlik harika performans!" style="width:100%;padding:8px;border-radius:6px;margin-bottom:14px;">
 
-          <button class="btn block" onclick="savePOTW()">🌟 Haftanın Oyuncusunu Yayınla</button>
+          <button class="btn block" onclick="savePOTW('${week.id}')">🌟 Haftanın Oyuncusunu Yayınla</button>
         </div>
       ` : ''}
     </div>
   `;
 }
 
-// Hafta Değiştirme
-function changePOTWWeek(delta) {
-  state.currentWeek = Math.max(1, (state.currentWeek || 1) + delta);
-  navigateTo('potw');
-}
-
-// Veriyi Getirme (Lokal veya Varsayılan)
-function getPOTWData(week) {
-  const local = localStorage.getItem(`potw_week_${week}`);
-  if (local) return JSON.parse(local);
-  return { playerId: null, note: '' };
-}
-
-// Host Kaydetme ve Yayınlama Mantığı
-async function savePOTW() {
-  const currentWeek = state.currentWeek || 1;
+function savePOTW(weekId) {
+  if (!isHost()) return;
   const playerId = document.getElementById('potwPlayerSelect').value;
   const note = document.getElementById('potwNoteInput').value;
 
   if (!playerId) {
-    showToast("Lütfen bir oyuncu seçin!");
+    toast("Lütfen bir oyuncu seçin!");
     return;
   }
 
-  const payload = {
-    week: currentWeek,
-    playerId: playerId,
-    note: note
-  };
+  if (!state.potw) state.potw = {};
+  state.potw[weekId] = { playerId, note };
 
-  // 1. Yerel Depolama
-  localStorage.setItem(`potw_week_${currentWeek}`, JSON.stringify(payload));
-
-  // 2. Supabase / Bulut Kaydı
-  if (window.supabase) {
-    const { error } = await supabase
-      .from('potw')
-      .upsert({ week_id: currentWeek, data: payload });
-
-    if (error) console.error("Supabase POTW kayıt hatası:", error);
-  }
-
-  showToast("Haftanın Oyuncusu başarıyla yayınlandı! 👑");
-  navigateTo('potw');
+  saveState();
+  toast("Haftanın Oyuncusu kaydedildi! 👑");
+  renderPOTW(weekId);
 }
-
-
-
 
 /* =========================================================
    6. GOL & ASİST KRALLIĞI
@@ -1030,13 +982,13 @@ function renderStatsRanking(type) {
       const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
       
       html += `
-        <div class="rank-row ${rank === 1 ? 'top1' : ''}" onclick="openPlayerPhotoModal('${p.id}')">
-          <div class="rank-medal">${medal}</div>
+        <div class="rank-row ${rank === 1 ? 'top1' : ''}" onclick="openPlayerPhotoModal('${p.id}')" style="display:flex;align-items:center;padding:10px;border-bottom:1px solid #eee;">
+          <div class="rank-medal" style="width:30px;font-weight:bold;">${medal}</div>
           ${miniAvatarHTML(p)}
-          <div class="rname">${escapeHtml(p.name)}</div>
-          <div class="rval">
+          <div class="rname" style="flex:1;margin-left:10px;font-weight:600;">${escapeHtml(p.name)}</div>
+          <div class="rval" style="font-weight:bold;text-align:right;">
             ${p.val}
-            <span>${isGoal ? 'TOPLAM GOL' : 'TOPLAM ASİST'}</span>
+            <span style="font-size:0.75rem;color:#888;display:block;">${isGoal ? 'GOL' : 'ASİST'}</span>
           </div>
         </div>
       `;
@@ -1148,7 +1100,7 @@ function renderTOTWSelectRow(label, slotKey, selectedId) {
   });
 
   return `
-    <div class="row">
+    <div class="row" style="margin-bottom:8px;">
       <label style="width:110px;font-size:0.8rem;font-weight:700;">${label}:</label>
       <select id="totw_select_${slotKey}">${options}</select>
     </div>
@@ -1175,7 +1127,7 @@ function saveTOTW(weekId) {
 }
 
 /* =========================================================
-   7.5 TAHMİN (HAFTALIK 9 SORU)
+   8. TAHMİN (HAFTALIK 9 SORU)
    ========================================================= */
 const TAHMIN_QUESTION_COUNT = 9;
 
@@ -1239,8 +1191,8 @@ function renderPredictions(weekParam) {
         <p style="color:var(--ink-soft);font-size:0.8rem;margin-top:4px;">Bu haftanın 9 sorusunu yaz ve yayınla. Herkes aynı soruları görüp cevaplayacak.</p>
         <div style="margin-top:10px;">
           ${data.questions.map((q, i) => `
-            <label class="field-label">Soru ${i + 1}</label>
-            <input type="text" id="tahmin_q_${i}" value="${escapeHtml(q)}" placeholder="Soru ${i + 1}...">
+            <label class="field-label" style="display:block;margin-top:6px;">Soru ${i + 1}</label>
+            <input type="text" id="tahmin_q_${i}" value="${escapeHtml(q)}" placeholder="Soru ${i + 1}..." style="width:100%;">
           `).join('')}
         </div>
         <button class="btn block" style="margin-top:14px;" onclick="saveTahminQuestions('${week.id}')">${data.published ? 'Soruları Güncelle & Yayınla' : 'Soruları Kaydet & Yayınla'}</button>
@@ -1289,15 +1241,15 @@ function renderPredictions(weekParam) {
       html += `
         <div class="card">
           ${data.questions.map((q, i) => `
-            <label class="field-label">Soru ${i + 1}: ${escapeHtml(q || 'Soru Metni Belirtilmedi')}</label>
-            <input type="text" id="tahmin_ans_${i}" value="${escapeHtml(myAnswers[i] || '')}" placeholder="Cevabını yaz...">
+            <label class="field-label" style="display:block;margin-top:6px;">Soru ${i + 1}:${escapeHtml(q || 'Soru Metni Belirtilmedi')}</label>
+            <input type="text" id="tahmin_ans_${i}" value="${escapeHtml(myAnswers[i] || '')}" placeholder="Cevabını yaz..." style="width:100%;">
           `).join('')}
           <button class="btn block" style="margin-top:14px;" onclick="submitTahminAnswers('${week.id}')">Cevapları Gönder</button>
         </div>
         ${typeof myScore === 'number' ? `
-          <div class="card" style="text-align:center;">
+          <div class="card" style="text-align:center;margin-top:12px;">
             <div style="font-size:0.85rem;color:var(--ink-soft);">Bu haftaki tahmin puanın</div>
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--pitch-dark);">⭐ ${myScore}</div>
+            <div style="font-size:1.8rem;font-weight:bold;color:var(--pitch-dark);">⭐ ${myScore}</div>
           </div>
         ` : ''}
       `;
@@ -1351,7 +1303,7 @@ function saveAllTahminScores(weekId) {
 }
 
 /* =========================================================
-   8. OYUNCU LİSTESİ VE FOTOĞRAF YÖNETİMİ
+   9. OYUNCU LİSTESİ VE FOTOĞRAF YÖNETİMİ
    ========================================================= */
 function renderPlayers() {
   const app = document.getElementById('app');
@@ -1426,7 +1378,7 @@ async function handlePhotoUpload(event, playerId) {
 }
 
 /* =========================================================
-   9. BU HAFTANIN KADROLARI (HOST'UN KURDUĞU SAHA DİZİLİŞİ)
+   10. BU HAFTANIN KADROLARI (SAHA DİZİLİŞİ)
    ========================================================= */
 function getLineupData(weekId) {
   if (!state.lineups) state.lineups = {};
