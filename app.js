@@ -322,9 +322,7 @@ function render() {
     case 'lineups': return renderLineups(param);
     case 'predictions': return renderPredictions(param);
    // app.js - Route Mantığı
-case 'potw':
-  appEl.innerHTML = renderPlayerOfTheWeekPage();
-  break;
+    case 'potw': return renderPOTW(param)
     default: return renderHome();
   }
 }
