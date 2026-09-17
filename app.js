@@ -475,6 +475,10 @@ function renderHome() {
         <div class="label">Haftanın 6'sı</div>
         <div class="stripe"></div>
       </div>
+      <div class="label" style="color: #000;">HAFTANIN OYUNCUSU</div>
+    </div>
+    <div class="icon">👑</div>
+  </div>
       ${isHost() ? `
       <div class="menu-card wide" style="border: 2px solid #FFC125;" onclick="go('#/hostpanel')">
         <div class="icon">⚙️</div>
