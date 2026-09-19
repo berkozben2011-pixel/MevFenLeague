@@ -1681,38 +1681,63 @@ function unpublishLineup(weekId) {
 
 // Fotoğrafa tıklandığında GLB modelini yükler / gösterir
 // GLB Dosyası Yükleme (Host)
+// GLB Dosyasını Supabase Storage'a Yükleme ve URL Alma
 async function handleGlbUpload(event, playerId) {
   const file = event.target.files && event.target.files[0];
   if (!file) return;
-  
-  // Boyut Kontrolü (Sınır aşımını ve yüklenememe sorununu önlemek için)
-  if (file.size > 15 * 1024 * 1024) { 
-    return toast('GLB dosyası çok büyük! Lütfen 15MB altı bir model yükleyin.');
+
+  // Dosya formatı kontrolü
+  if (!file.name.endsWith('.glb')) {
+    return toast('Lütfen geçerli bir .glb dosyası seçin!');
   }
 
-  toast('3D Model işleniyor…');
-  const reader = new FileReader();
-  reader.onload = async () => {
-    const p = getPlayer(playerId);
-    p.glb = reader.result; // Base64 Data URL
+  toast('3D Model Supabase Storage\'a yükleniyor…');
 
-    // Supabase entegrasyonu varsa 'player_photos' veya 'player_models' tablosuna kaydetme
-    if (supabaseReady) {
-      try {
-        await sb.from('player_photos').upsert({
-          player_id: playerId,
-          glb: reader.result,
-          updated_at: new Date().toISOString()
-        });
-      } catch(e) { console.error('GLB kaydetme hatası:', e); }
+  try {
+    // 1. Benzersiz bir dosya adı oluşturun (örn: player_123_169000000.glb)
+    const fileName = `player_${playerId}_${Date.now()}.glb`;
+
+    // 2. Dosyayı Supabase 'models' bucket'ına yükleyin
+    const { data: uploadData, error: uploadError } = await sb.storage
+      .from('models') // Supabase'de oluşturduğunuz bucket adı
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
+
+    if (uploadError) {
+      console.error('Storage Yükleme Hatası:', uploadError);
+      return toast('Yükleme başarısız: ' + uploadError.message);
+    }
+
+    // 3. Yüklenen dosyanın doğrudan erişilebilir Public URL'sini alın
+    const { data: publicUrlData } = sb.storage
+      .from('models')
+      .getPublicUrl(fileName);
+
+    const publicUrl = publicUrlData.publicUrl; // https://xyz.supabase.co/storage/v1/object/public/models/player_123_...glb
+
+    // 4. Oyuncu nesnesine ve veritabanına doğrudan bu URL'yi kaydedin
+    const p = getPlayer(playerId);
+    p.glb = publicUrl;
+
+    if (typeof supabaseReady !== 'undefined' && supabaseReady) {
+      await sb.from('player_photos').upsert({
+        player_id: playerId,
+        glb: publicUrl,
+        updated_at: new Date().toISOString()
+      });
     }
 
     saveState();
     closeSheet();
     render();
-    toast('3D Model yüklendi ve kaydedildi! 🎮');
-  };
-  reader.readAsDataURL(file);
+    toast('3D Model başarıyla yüklendi! 🎮');
+
+  } catch (err) {
+    console.error('İşlem hatası:', err);
+    toast('Bir hata oluştu!');
+  }
 }
 
 // 3D Modeli Görüntüleme / Sahneleme
