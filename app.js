@@ -1334,7 +1334,10 @@ function openPlayerPhotoModal(playerId) {
 
   openSheet(`
     <div style="text-align:center;">
-      ${avatarHTML(p)}
+      <div id="modelContainer_${p.id}" style="display:inline-block; position:relative; cursor:pointer;" onclick="toggleGlbModel('${p.id}')">
+        ${avatarHTML(p)}
+        ${p.glb ? `<div style="font-size:0.7rem; color:var(--gold); font-weight:bold; margin-top:4px;">🎮 3D Modeli Gör (Tıkla)</div>` : ''}
+      </div>
       <h3>${escapeHtml(p.name)}</h3>
       <p style="color:var(--ink-soft);font-size:0.85rem;">Forma No: #${p.squadNumber} | Değer: ${priceVal}M €</p>
       <div style="display:flex;justify-content:center;gap:15px;margin-top:10px;">
@@ -1343,12 +1346,16 @@ function openPlayerPhotoModal(playerId) {
       </div>
     </div>
     ${isHost() ? `
-      <input type="file" accept="image/*" id="photoInput_${p.id}" style="display:none;" onchange="handlePhotoUpload(event,'${p.id}')">
-      <button class="btn block secondary" style="margin-top:15px;" onclick="document.getElementById('photoInput_${p.id}').click()">📷 Fotoğraf Değiştir (Host)</button>
-    ` : '<p style="text-align:center;color:var(--ink-soft);font-size:0.75rem;margin-top:10px;">* Fotoğrafları sadece Host değiştirebilir.</p>'}
+      <div style="margin-top:15px; display:flex; flex-direction:column; gap:8px;">
+        <input type="file" accept="image/*" id="photoInput_${p.id}" style="display:none;" onchange="handlePhotoUpload(event,'${p.id}')">
+        <button class="btn block secondary" onclick="document.getElementById('photoInput_${p.id}').click()">📷 Fotoğraf Değiştir (Host)</button>
+        
+        <input type="file" accept=".glb" id="glbInput_${p.id}" style="display:none;" onchange="handleGlbUpload(event,'${p.id}')">
+        <button class="btn block secondary" style="border-color:var(--gold); color:var(--gold-deep);" onclick="document.getElementById('glbInput_${p.id}').click()">📦 3D Model (GLB) Yükle (Host)</button>
+      </div>
+    ` : '<p style="text-align:center;color:var(--ink-soft);font-size:0.75rem;margin-top:10px;">* Fotoğraf ve 3D modelleri sadece Host değiştirebilir.</p>'}
   `);
 }
-
 async function handlePhotoUpload(event, playerId) {
   const file = event.target.files && event.target.files[0];
   if (!file) return;
@@ -1660,4 +1667,61 @@ function unpublishLineup(weekId) {
   saveState();
   toast('Yayın kaldırıldı, kadro taslak durumunda');
   renderLineups(weekId);
+}
+
+
+/* =========================================================
+   GLB 3D MODEL YÖNETİMİ & GÖRÜNTÜLEME
+   ========================================================= */
+
+// Fotoğrafa tıklandığında GLB modelini yükler / gösterir
+function toggleGlbModel(playerId) {
+  const p = getPlayer(playerId);
+  if (!p || !p.glb) {
+    if (isHost()) {
+      toast("Bu oyuncunun henüz GLB modeli yok. Aşağıdaki butondan yükleyebilirsiniz.");
+    }
+    return;
+  }
+
+  const container = document.getElementById(`modelContainer_${p.id}`);
+  if (!container) return;
+
+  // 3D Model görüntüleyiciyi yerleştir
+  container.innerHTML = `
+    <model-viewer 
+      src="${p.glb}" 
+      alt="${escapeHtml(p.name)} 3D Modeli" 
+      auto-rotate 
+      camera-controls 
+      shadow-intensity="1"
+      style="width:160px; height:160px; background:rgba(0,0,0,0.05); border-radius:12px; margin:0 auto;">
+    </model-viewer>
+    <div style="font-size:0.65rem; color:var(--ink-soft); margin-top:4px;">🔄 Döndürmek için sürükleyin</div>
+  `;
+}
+
+// Host tarafından yüklenen GLB dosyasını işler ve kaydeder
+async function handleGlbUpload(event, playerId) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  
+  if (!file.name.toLowerCase().endsWith('.glb')) {
+    toast('Lütfen geçerli bir .glb uzantılı 3D dosya seçin!');
+    return;
+  }
+
+  toast('3D Model yükleniyor…');
+
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const p = getPlayer(playerId);
+    p.glb = reader.result;
+
+    saveState();
+    closeSheet();
+    render();
+    toast('3D GLB Modeli başarıyla yüklendi! 🎉');
+  };
+  reader.readAsDataURL(file);
 }
