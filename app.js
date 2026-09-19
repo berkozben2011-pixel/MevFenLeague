@@ -1680,62 +1680,97 @@ function unpublishLineup(weekId) {
    ========================================================= */
 
 // Fotoğrafa tıklandığında GLB modelini yükler / gösterir
-function toggleGlbModel(playerId) {
-  const p = getPlayer(playerId);
-  if (!p || !p.glb) {
-    if (isHost()) {
-      toast("Bu oyuncunun henüz GLB modeli yok. Aşağıdaki butondan yükleyebilirsiniz.");
-    }
-    return;
-  }
-
-  const container = document.getElementById(`modelContainer_${p.id}`);
-  if (!container) return;
-
-  // model-viewer Draco dosyalarını varsayılan olarak destekler.
-  // Gerekirse decoder yolunu açıkça belirtebilirsiniz.
-  container.innerHTML = `
-    <model-viewer 
-      src="${p.glb}" 
-      alt="${escapeHtml(p.name)} 3D Modeli" 
-      auto-rotate 
-      camera-controls 
-      shadow-intensity="1"
-      draco-decoder-path="https://www.gstatic.com/draco/versioned/decoders/1.5.6/"
-      style="width:160px; height:160px; background:rgba(0,0,0,0.05); border-radius:12px; margin:0 auto;">
-    </model-viewer>
-    <div style="font-size:0.65rem; color:var(--ink-soft); margin-top:4px;">🔄 Döndürmek için sürükleyin</div>
-  `;
-}
-// Host tarafından yüklenen GLB dosyasını işler ve kaydeder
+// GLB Dosyası Yükleme (Host)
 async function handleGlbUpload(event, playerId) {
   const file = event.target.files && event.target.files[0];
   if (!file) return;
   
-  if (!file.name.toLowerCase().endsWith('.glb')) {
-    toast('Lütfen geçerli bir .glb uzantılı 3D dosya seçin!');
-    return;
+  // Boyut Kontrolü (Sınır aşımını ve yüklenememe sorununu önlemek için)
+  if (file.size > 15 * 1024 * 1024) { 
+    return toast('GLB dosyası çok büyük! Lütfen 15MB altı bir model yükleyin.');
   }
 
-  // Draco sıkıştırılmış olsa bile 5MB üstü Base64 dosyaları performansı düşürebilir
-  const maxMb = 5;
-  if (file.size > maxMb * 1024 * 1024) {
-    toast(`Dosya boyutu çok yüksek! Lütfen ${maxMb}MB'dan küçük bir Draco GLB yükleyin.`);
-    return;
-  }
-
-  toast('3D Model yükleniyor…');
-
+  toast('3D Model işleniyor…');
   const reader = new FileReader();
   reader.onload = async () => {
     const p = getPlayer(playerId);
     p.glb = reader.result; // Base64 Data URL
 
-    if (typeof saveState === 'function') saveState();
-    if (typeof closeSheet === 'function') closeSheet();
-    if (typeof render === 'function') render();
-    
-    toast('3D GLB Modeli başarıyla yüklendi! 🎉');
+    // Supabase entegrasyonu varsa 'player_photos' veya 'player_models' tablosuna kaydetme
+    if (supabaseReady) {
+      try {
+        await sb.from('player_photos').upsert({
+          player_id: playerId,
+          glb: reader.result,
+          updated_at: new Date().toISOString()
+        });
+      } catch(e) { console.error('GLB kaydetme hatası:', e); }
+    }
+
+    saveState();
+    closeSheet();
+    render();
+    toast('3D Model yüklendi ve kaydedildi! 🎮');
   };
   reader.readAsDataURL(file);
+}
+
+// 3D Modeli Görüntüleme / Sahneleme
+function toggleGlbModel(playerId) {
+  const p = getPlayer(playerId);
+  if (!p || !p.glb) return toast('Bu oyuncu için 3D model yüklenmemiş.');
+
+  const container = document.getElementById(`modelContainer_${playerId}`);
+  if (!container) return;
+
+  // Temizle ve Canvas Oluştur
+  container.innerHTML = `<div id="threeCanvas_${playerId}" style="width: 200px; height: 200px; margin: 0 auto; border-radius: 12px; overflow: hidden; background: #1E7145;"></div>`;
+
+  const canvasDiv = document.getElementById(`threeCanvas_${playerId}`);
+  
+  // Three.js Kurulumu
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  
+  renderer.setSize(200, 200);
+  canvasDiv.appendChild(renderer.domElement);
+
+  // Işıklandırma
+  const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+  scene.add(ambientLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+  dirLight.position.set(5, 10, 7.5);
+  scene.add(dirLight);
+
+  camera.position.set(0, 1, 3);
+
+  // OrbitControls (Modeli Dündürme)
+  if (THREE.OrbitControls) {
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+  }
+
+  // GLTF Loader ile modeli yükleme
+  const loader = new THREE.GLTFLoader();
+  loader.load(
+    p.glb,
+    (gltf) => {
+      const model = gltf.scene;
+      scene.add(model);
+      
+      // Modeli Otomatik Döndürme Döngüsü
+      function animate() {
+        requestAnimationFrame(animate);
+        model.rotation.y += 0.01;
+        renderer.render(scene, camera);
+      }
+      animate();
+    },
+    undefined,
+    (error) => {
+      console.error('GLB yüklenirken hata oluştu:', error);
+      toast('Model dosyası bozuk veya render edilemiyor.');
+    }
+  );
 }
