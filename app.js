@@ -1675,6 +1675,11 @@ function unpublishLineup(weekId) {
    ========================================================= */
 
 // Fotoğrafa tıklandığında GLB modelini yükler / gösterir
+/* =========================================================
+   GLB 3D MODEL YÖNETİMİ & GÖRÜNTÜLEME
+   ========================================================= */
+
+// Fotoğrafa tıklandığında GLB modelini yükler / gösterir
 function toggleGlbModel(playerId) {
   const p = getPlayer(playerId);
   if (!p || !p.glb) {
@@ -1687,7 +1692,8 @@ function toggleGlbModel(playerId) {
   const container = document.getElementById(`modelContainer_${p.id}`);
   if (!container) return;
 
-  // 3D Model görüntüleyiciyi yerleştir
+  // model-viewer Draco dosyalarını varsayılan olarak destekler.
+  // Gerekirse decoder yolunu açıkça belirtebilirsiniz.
   container.innerHTML = `
     <model-viewer 
       src="${p.glb}" 
@@ -1695,12 +1701,12 @@ function toggleGlbModel(playerId) {
       auto-rotate 
       camera-controls 
       shadow-intensity="1"
+      draco-decoder-path="https://www.gstatic.com/draco/versioned/decoders/1.5.6/"
       style="width:160px; height:160px; background:rgba(0,0,0,0.05); border-radius:12px; margin:0 auto;">
     </model-viewer>
     <div style="font-size:0.65rem; color:var(--ink-soft); margin-top:4px;">🔄 Döndürmek için sürükleyin</div>
   `;
 }
-
 // Host tarafından yüklenen GLB dosyasını işler ve kaydeder
 async function handleGlbUpload(event, playerId) {
   const file = event.target.files && event.target.files[0];
@@ -1711,16 +1717,24 @@ async function handleGlbUpload(event, playerId) {
     return;
   }
 
+  // Draco sıkıştırılmış olsa bile 5MB üstü Base64 dosyaları performansı düşürebilir
+  const maxMb = 5;
+  if (file.size > maxMb * 1024 * 1024) {
+    toast(`Dosya boyutu çok yüksek! Lütfen ${maxMb}MB'dan küçük bir Draco GLB yükleyin.`);
+    return;
+  }
+
   toast('3D Model yükleniyor…');
 
   const reader = new FileReader();
   reader.onload = async () => {
     const p = getPlayer(playerId);
-    p.glb = reader.result;
+    p.glb = reader.result; // Base64 Data URL
 
-    saveState();
-    closeSheet();
-    render();
+    if (typeof saveState === 'function') saveState();
+    if (typeof closeSheet === 'function') closeSheet();
+    if (typeof render === 'function') render();
+    
     toast('3D GLB Modeli başarıyla yüklendi! 🎉');
   };
   reader.readAsDataURL(file);
