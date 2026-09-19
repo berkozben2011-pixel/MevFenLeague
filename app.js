@@ -1747,3 +1747,4 @@ import { SimplifyModifier } from 'three/examples/jsm/modifiers/SimplifyModifier.
 const modifier = new SimplifyModifier();
 const count = Math.floor(geometry.attributes.position.count * 0.5); 
 const simplifiedGeometry = modifier.modify(geometry, count);
+}
