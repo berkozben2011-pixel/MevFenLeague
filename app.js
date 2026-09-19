@@ -1740,9 +1740,10 @@ async function handleGlbUpload(event, playerId) {
   reader.readAsDataURL(file);
 }
 
+import * as THREE from 'three';
 import { SimplifyModifier } from 'three/examples/jsm/modifiers/SimplifyModifier.js';
 
+// Modelinizdeki geometriyi basitleştirme işlemi:
 const modifier = new SimplifyModifier();
-// Mevcut yüzey sayısının %50'sini hedefle:
 const count = Math.floor(geometry.attributes.position.count * 0.5); 
 const simplifiedGeometry = modifier.modify(geometry, count);
