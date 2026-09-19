@@ -1,11 +1,20 @@
 <!DOCTYPE html>
 <html lang="tr">
-<!-- GLB 3D Model Görüntüleyici Kütüphanesi -->
-<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Mev Fen Futbol Ligi — Puan Yarışı</title>
+
+<!-- EKLENDİ: Three.js ve SimplifyModifier modül yollarını tanıtan importmap -->
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/examples/jsm/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+</script>
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -389,6 +398,8 @@ input[type=text], input[type=date], input[type=datetime-local]{width:100%;paddin
 
 <!-- Ortak bulut senkronizasyonu için Supabase SDK eklendi -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js"></script>
+
+<!-- GÜNCELLENDİ: type="module" eklendi. Artık app.js içinde SimplifyModifier import edebilirsiniz. -->
+<script type="module" src="app.js"></script>
 </body>
 </html>
