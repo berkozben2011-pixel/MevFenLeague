@@ -13,7 +13,7 @@ const DEFAULT_PLAYERS = [
   'Berk ÖZBEN', 'Koray MİRALAY', 'Erdoğan Kerem TAŞDELEN', 'Yankı YAŞAR',
   'Olcay Rüzgar TUFAN', 'Can Burak ULUSOY', 'Kaan ETLİOĞLU', 'Eren Arda TURAN',
   'Atakan KÖROĞLU', 'Umut AKILLIGİL', 'Demir ÇİĞDEMOĞLU', 'Kemal Demir SÖKEL',
-  'Ahmet Kağan KAVALCI', 'Demir KANDEMİR'
+  'Ahmet Kağan KAVALCI', 'Demir AMDEMİR'
 ];
 
 const AVATAR_COLORS = [
