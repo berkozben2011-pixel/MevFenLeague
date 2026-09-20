@@ -250,6 +250,10 @@ function toast(msg) {
 }
 
 function closeSheet() {
+  // Açık 3D model görüntüleyicileri varsa (sheet kapanınca DOM'dan silinecekleri için) düzgünce temizle
+  if (window._glbViewers) {
+    Object.keys(window._glbViewers).forEach((pid) => disposeGlbViewer(pid));
+  }
   const ov = document.getElementById('overlayEl');
   if (ov) ov.remove();
 }
@@ -1740,6 +1744,33 @@ async function handleGlbUpload(event, playerId) {
   }
 }
 
+// Aktif GLB görüntüleyicileri (context sızıntısını önlemek için)
+window._glbViewers = window._glbViewers || {};
+
+function disposeGlbViewer(playerId) {
+  const active = window._glbViewers[playerId];
+  if (!active) return;
+  if (active.rafId) cancelAnimationFrame(active.rafId);
+  if (active.controls) active.controls.dispose();
+  if (active.renderer) {
+    active.renderer.dispose();
+    active.renderer.forceContextLoss && active.renderer.forceContextLoss();
+  }
+  if (active.scene) {
+    active.scene.traverse((obj) => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        mats.forEach((m) => {
+          Object.values(m).forEach((v) => { if (v && v.isTexture) v.dispose(); });
+          m.dispose && m.dispose();
+        });
+      }
+    });
+  }
+  delete window._glbViewers[playerId];
+}
+
 // 3D Modeli Görüntüleme / Sahneleme
 function toggleGlbModel(playerId) {
   const p = getPlayer(playerId);
@@ -1747,6 +1778,16 @@ function toggleGlbModel(playerId) {
 
   const container = document.getElementById(`modelContainer_${playerId}`);
   if (!container) return;
+
+  // Zaten açıksa: kapat ve foto görünümüne geri dön (context sızıntısı olmasın)
+  if (window._glbViewers[playerId]) {
+    disposeGlbViewer(playerId);
+    container.innerHTML = `
+      ${avatarHTML(p)}
+      <div style="font-size:0.7rem; color:var(--gold); font-weight:bold; margin-top:4px;">🎮 3D Modeli Gör (Tıkla)</div>
+    `;
+    return;
+  }
 
   // Temizle ve Canvas Oluştur
   container.innerHTML = `<div id="threeCanvas_${playerId}" style="width: 200px; height: 200px; margin: 0 auto; border-radius: 12px; overflow: hidden; background: #1E7145;"></div>`;
@@ -1770,10 +1811,15 @@ function toggleGlbModel(playerId) {
 
   camera.position.set(0, 1, 3);
 
+  // Görüntüleyiciyi kaydet (henüz model/controls yok, sonra doldurulacak)
+  const viewerEntry = { renderer, scene, camera, controls: null, rafId: null };
+  window._glbViewers[playerId] = viewerEntry;
+
   // OrbitControls (Modeli Dündürme)
   if (THREE.OrbitControls) {
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
+    viewerEntry.controls = controls;
   }
 
   // GLTF Loader ile modeli yükleme (Draco sıkıştırma desteğiyle)
@@ -1785,17 +1831,25 @@ function toggleGlbModel(playerId) {
       window._dracoLoaderInstance = dracoLoader;
     }
     loader.setDRACOLoader(window._dracoLoaderInstance);
+  } else {
+    console.warn('THREE.DRACOLoader bulunamadı — index.html içindeki DRACOLoader.js script etiketinin yüklendiğinden emin olun.');
   }
   loader.load(
     p.glb,
     (gltf) => {
+      // Kullanıcı bu sırada modeli kapattıysa (viewer artık kayıtlı değilse) sahneye ekleme
+      if (window._glbViewers[playerId] !== viewerEntry) return;
+
       const model = gltf.scene;
       scene.add(model);
-      
+
       // Modeli Otomatik Döndürme Döngüsü
       function animate() {
-        requestAnimationFrame(animate);
+        // Görüntüleyici hâlâ aktifse devam et
+        if (window._glbViewers[playerId] !== viewerEntry) return;
+        viewerEntry.rafId = requestAnimationFrame(animate);
         model.rotation.y += 0.01;
+        if (viewerEntry.controls) viewerEntry.controls.update();
         renderer.render(scene, camera);
       }
       animate();
@@ -1804,6 +1858,7 @@ function toggleGlbModel(playerId) {
     (error) => {
       console.error('GLB yüklenirken hata oluştu:', error);
       toast('Model dosyası bozuk veya render edilemiyor.');
+      disposeGlbViewer(playerId);
     }
   );
 }
