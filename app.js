@@ -1776,8 +1776,16 @@ function toggleGlbModel(playerId) {
     controls.enableDamping = true;
   }
 
-  // GLTF Loader ile modeli yükleme
+  // GLTF Loader ile modeli yükleme (Draco sıkıştırma desteğiyle)
   const loader = new THREE.GLTFLoader();
+  if (THREE.DRACOLoader) {
+    if (!window._dracoLoaderInstance) {
+      const dracoLoader = new THREE.DRACOLoader();
+      dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+      window._dracoLoaderInstance = dracoLoader;
+    }
+    loader.setDRACOLoader(window._dracoLoaderInstance);
+  }
   loader.load(
     p.glb,
     (gltf) => {
