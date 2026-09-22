@@ -475,11 +475,13 @@ function renderHome() {
         <div class="label">Haftanın 6'sı</div>
         <div class="stripe"></div>
       </div>
-      <div class="menu-card" onclick="go('#/potw')">
-        <div class="icon">👑</div>
-        <div class="label">Haftanın Oyuncusu</div>
-        <div class="stripe"></div>
-      </div>
+      <div class="card" style="text-align:center; padding:24px 16px; background: linear-gradient(180deg, #FFFDF8 0%, #FFF3D1 100%); border: 2px solid #FFC125;">
+  <div style="font-size: 2.5rem; margin-bottom: 6px;">👑</div>
+  <div style="font-size:1.1rem; color:#8A6D0B; letter-spacing:0.1em; font-weight:bold;">HAFTANIN OYUNCUSU</div>
+  <div style="margin: 14px auto; width:110px;">${avatarHTML(selectedPlayer)}</div>
+  <h2 style="color:var(--ink); font-size: 2rem; margin-top:6px;">${escapeHtml(selectedPlayer.name)}</h2>${potwData.note ? `<p style="color:var(--ink-soft); font-size:0.9rem; font-style:italic; margin-top:8px;">"${escapeHtml(potwData.note)}"</p>` : ''}
+</div>
+
       ${isHost() ? `
       <div class="menu-card wide" style="border: 2px solid #FFC125;" onclick="go('#/hostpanel')">
         <div class="icon">⚙️</div>
@@ -946,13 +948,20 @@ function savePOTW(weekId) {
     toast("Lütfen bir oyuncu seçin!");
     return;
   }
-
+   
   if (!state.potw) state.potw = {};
   state.potw[weekId] = { playerId, note };
 
   saveState();
   toast("Haftanın Oyuncusu kaydedildi! 👑");
   renderPOTW(weekId);
+}
+
+// Eğer oyuncunun 3D modeli tanımlıysa otomatik 3D görünümünü başlat
+if (selectedPlayer && selectedPlayer.glb) {
+  setTimeout(() => {
+    toggleGlbModel(selectedPlayer.id);
+  }, 100);
 }
 
 /* =========================================================
