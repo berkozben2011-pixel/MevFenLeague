@@ -483,7 +483,7 @@ const selectedPlayer = getPlayer(potwData.playerId);
   <div style="font-size:1.1rem; color:#8A6D0B; letter-spacing:0.1em; font-weight:bold;">HAFTANIN OYUNCUSU</div>
   // renderHome() içerisindeki ilgili satır:
 <div style="margin: 14px auto; width:110px;">${avatarHTML(selectedPlayer)}</div>
-<h2 style="color:var(--ink); font-size: 2rem; margin-top:6px;">${escapeHtml(selectedPlayer.name)}</h2>${potwData.note ? ...
+<h2 style="color:var(--ink); font-size: 2rem; margin-top:6px;">${escapeHtml(selectedPlayer.name)}</h2>${potwData.note ?
 </div>
 
       ${isHost() ? `
