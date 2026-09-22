@@ -914,19 +914,21 @@ function renderPOTW(weekParam) {
         <button ${nextWeek ? '' : 'disabled'} onclick="go('#/potw/${nextWeek ? nextWeek.id : ''}')">›</button>
       </div>
 
-      ${selectedPlayer ? `
-        <div class="card" style="text-align:center; padding:24px 16px; background: linear-gradient(180deg, #FFFDF8 0%, #FFF3D1 100%); border: 2px solid #FFC125;">
-          <div style="font-size: 2.5rem; margin-bottom: 6px;">👑</div>
-          <div style="font-size:1.1rem; color:#8A6D0B; letter-spacing:0.1em; font-weight:bold;">HAFTANIN YILDIZI</div>
-          <div style="margin: 14px auto; width:110px;">${avatarHTML(selectedPlayer)}</div>
-          <h2 style="color:var(--ink); font-size: 2rem; margin-top:6px;">${escapeHtml(selectedPlayer.name)}</h2>${potwData.note ? `<p style="color:var(--ink-soft); font-size:0.9rem; font-style:italic; margin-top:8px;">"${escapeHtml(potwData.note)}"</p>` : ''}
-        </div>
-      ` : `
-        <div class="card" style="text-align:center; padding:20px;">
-          <div style="font-size:2.5rem; margin-bottom:10px;">🌟</div>
-          <p>Bu hafta için henüz Haftanın Oyuncusu seçilmedi.</p>
-        </div>
-      `}
+      // renderPOTW() içerisindeki selectedPlayer kartı:
+${selectedPlayer ? `
+  <div class="card" 
+       id="modelContainer_${selectedPlayer.id}" 
+       onclick="toggleGlbModel('${selectedPlayer.id}')" 
+       style="text-align:center; padding:24px 16px; background: linear-gradient(180deg, #FFFDF8 0%, #FFF3D1 100%); border: 2px solid #FFC125; cursor:pointer;">
+    <div style="font-size: 2.5rem; margin-bottom: 6px;">👑</div>
+    <div style="font-size:1.1rem; color:#8A6D0B; letter-spacing:0.1em; font-weight:bold;">HAFTANIN YILDIZI</div>
+    <div style="margin: 14px auto; width:110px;">${avatarHTML(selectedPlayer)}</div>
+    <h2 style="color:var(--ink); font-size: 2rem; margin-top:6px;">${escapeHtml(selectedPlayer.name)}</h2>
+    ${potwData.note ? `<p style="color:var(--ink-soft); font-size:0.9rem; font-style:italic; margin-top:8px;">"${escapeHtml(potwData.note)}"</p>` : ''}
+    ${selectedPlayer.glb ? `<div style="font-size:0.75rem; color:var(--gold); font-weight:bold; margin-top:6px;">🎮 3D Modeli Gör (Tıkla)</div>` : ''}
+  </div>
+` : ` ... `}
+
 
       ${isHost() ? `
         <div class="card" style="margin-top:16px;">
@@ -964,9 +966,11 @@ function savePOTW(weekId) {
 
   saveState();
   toast("Haftanın Oyuncusu kaydedildi! 👑");
+  
+  // 1. Önce DOM'u yenileyin ki modelContainer_<id> ID'li eleman ekrana basılsın
   renderPOTW(weekId);
 
-   // Eğer oyuncunun 3D modeli tanımlıysa otomatik 3D görünümünü başlat
+  // 2. Sayfa çizildikten sonra 3D modeli başlatın
   const savedPlayer = getPlayer(playerId);
   if (savedPlayer && savedPlayer.glb) {
     setTimeout(() => {
@@ -974,6 +978,7 @@ function savePOTW(weekId) {
     }, 100);
   }
 }
+
 
 /* =========================================================
    6. GOL & ASİST KRALLIĞI
