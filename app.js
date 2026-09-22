@@ -481,9 +481,9 @@ const selectedPlayer = getPlayer(potwData.playerId);
       <div class="card" style="text-align:center; padding:24px 16px; background: linear-gradient(180deg, #FFFDF8 0%, #FFF3D1 100%); border: 2px solid #FFC125;">
   <div style="font-size: 2.5rem; margin-bottom: 6px;">👑</div>
   <div style="font-size:1.1rem; color:#8A6D0B; letter-spacing:0.1em; font-weight:bold;">HAFTANIN OYUNCUSU</div>
-  // renderHome() içerisindeki ilgili satır:
-<div style="margin: 14px auto; width:110px;">${avatarHTML(selectedPlayer)}</div>
-<h2 style="color:var(--ink); font-size: 2rem; margin-top:6px;">${escapeHtml(selectedPlayer.name)}</h2>${potwData.note ?
+  <div style="margin: 14px auto; width:110px;">${avatarHTML(selectedPlayer)}</div>
+  <h2 style="color:var(--ink); font-size: 2rem; margin-top:6px;">${selectedPlayer ? escapeHtml(selectedPlayer.name) : 'Henüz Seçilmedi'}</h2>
+  ${potwData.note ? `<p style="color:var(--ink-soft); font-size:0.85rem; margin-top:6px;">${escapeHtml(potwData.note)}</p>` : ''}
 </div>
 
       ${isHost() ? `
@@ -961,14 +961,13 @@ function savePOTW(weekId) {
   renderPOTW(weekId);
 
    // Eğer oyuncunun 3D modeli tanımlıysa otomatik 3D görünümünü başlat
-if (selectedPlayer && selectedPlayer.glb) {
-  setTimeout(() => {
-    toggleGlbModel(selectedPlayer.id);
-  }, 100);
+  const savedPlayer = getPlayer(playerId);
+  if (savedPlayer && savedPlayer.glb) {
+    setTimeout(() => {
+      toggleGlbModel(savedPlayer.id);
+    }, 100);
+  }
 }
-
-
-
 
 /* =========================================================
    6. GOL & ASİST KRALLIĞI
